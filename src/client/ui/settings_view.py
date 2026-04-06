@@ -1,7 +1,7 @@
 """
 Settings View Module
 Displays a list of currently running applications and allows the user 
-to select which ones should be blocked during a focus session.
+to select which ones they want to focus on during a session.
 """
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, 
                              QPushButton, QListWidget, QListWidgetItem, QMessageBox)
@@ -20,7 +20,7 @@ except ImportError:
 class SettingsView(QWidget):
     """
     The UI screen where users configure their focus session settings,
-    specifically choosing which apps to block.
+    specifically choosing which apps they intend to focus on.
     """
     
     def __init__(self):
@@ -35,20 +35,21 @@ class SettingsView(QWidget):
         main_layout.setContentsMargins(30, 30, 30, 30)
         
         # Title
-        title_label = QLabel("Select Apps to Block")
+        title_label = QLabel("Focus Settings")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #2C3E50;")
         title_label.setAlignment(Qt.AlignCenter)
         
-        # Instructions
-        instruction_label = QLabel("Check the boxes next to the apps that distract you.")
-        instruction_label.setStyleSheet("font-size: 14px; color: #7F8C8D;")
+        # Instructions (UPDATED FOR FOCUS PARADIGM)
+        instruction_label = QLabel("Check the boxes next to the apps you want to FOCUS ON.\nAny other app will count as a distraction!")
+        instruction_label.setStyleSheet("font-size: 14px; color: #E74C3C; font-weight: bold;")
+        instruction_label.setAlignment(Qt.AlignCenter)
         
         # The scrollable list that will hold our apps
         self._app_list_widget = QListWidget()
         self._app_list_widget.setStyleSheet("font-size: 14px; padding: 5px;")
         
         # Refresh Button (to scan the PC again)
-        self._refresh_btn = QPushButton("Scan for Running Apps")
+        self._refresh_btn = QPushButton("🔄 Scan for Running Apps")
         self._refresh_btn.setStyleSheet("padding: 8px; background-color: #3498DB; color: white; font-weight: bold;")
         self._refresh_btn.clicked.connect(self._populate_app_list)
         
@@ -105,7 +106,7 @@ class SettingsView(QWidget):
             if item.checkState() == Qt.Checked:
                 selected_apps.append(item.text())
                 
-        print(f"[UI] User saved the following blocked apps: {selected_apps}")
+        print(f"[UI] User selected the following FOCUS apps: {selected_apps}")
         return selected_apps
 
 # ==========================================

@@ -1,101 +1,92 @@
 """
-Login View Module for Lock In
-Handles the user interface for the login and registration screen.
+Login View Module
+The first screen the user sees to authenticate or create an account.
 """
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QMessageBox, QHBoxLayout)
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton
 from PyQt5.QtCore import Qt
 
 class LoginView(QWidget):
-    """
-    מחלקה המייצגת את מסך ההתחברות של המערכת.
-    כוללת שדות להזנת שם משתמש וסיסמה, וכפתורי התחברות והרשמה.
-    """
-    
     def __init__(self):
         super().__init__()
+        self.is_login_mode = True  # We start in Login Mode by default
         self._init_ui()
         
     def _init_ui(self):
-        """
-        פונקציה פרטית לאתחול ובניית רכיבי הממשק (Widgets) וסידורם על המסך.
-        """
-        # הגדרות חלון בסיסיות (למרות שיוצג בתוך חלון ראשי בהמשך)
-        self.setWindowTitle("Lock In - Login")
-        self.setFixedSize(400, 500)
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(15)
         
-        # פריסה (Layout) ראשית אנכית
-        main_layout = QVBoxLayout()
-        main_layout.setAlignment(Qt.AlignCenter)
-        main_layout.setSpacing(20)
+        # Title & Subtitle
+        title = QLabel("Lock In")
+        title.setStyleSheet("font-size: 36px; font-weight: bold; color: #2C3E50;")
+        title.setAlignment(Qt.AlignCenter)
         
-        # כותרת האפליקציה
-        title_label = QLabel("Lock In")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 36px; font-weight: bold; color: #2C3E50;")
+        self._subtitle = QLabel("Welcome back! Please log in.")
+        self._subtitle.setStyleSheet("font-size: 16px; color: #7F8C8D; margin-bottom: 20px;")
+        self._subtitle.setAlignment(Qt.AlignCenter)
         
-        # שדה שם משתמש
+        # Inputs
         self._username_input = QLineEdit()
-        self._username_input.setPlaceholderText("שם משתמש")
-        self._username_input.setStyleSheet("font-size: 16px; padding: 10px;")
+        self._username_input.setPlaceholderText("Username")
+        self._username_input.setFixedSize(250, 40)
         
-        # שדה סיסמה (מוסתרת)
+        self._email_input = QLineEdit()
+        self._email_input.setPlaceholderText("Email")
+        self._email_input.setFixedSize(250, 40)
+        self._email_input.hide() # HIDDEN BY DEFAULT!
+        
         self._password_input = QLineEdit()
-        self._password_input.setPlaceholderText("סיסמה")
+        self._password_input.setPlaceholderText("Password")
         self._password_input.setEchoMode(QLineEdit.Password)
-        self._password_input.setStyleSheet("font-size: 16px; padding: 10px;")
+        self._password_input.setFixedSize(250, 40)
         
-        # פריסה אופקית לכפתורים
-        buttons_layout = QHBoxLayout()
+        # Action Buttons
+        self._login_btn = QPushButton("Login")
+        self._login_btn.setFixedSize(250, 40)
+        self._login_btn.setStyleSheet("background-color: #3498DB; color: white; font-weight: bold; border-radius: 5px;")
         
-        # כפתור התחברות
-        self._login_btn = QPushButton("התחבר")
-        self._login_btn.setStyleSheet("font-size: 16px; padding: 10px; background-color: #3498DB; color: white; font-weight: bold;")
-        self._login_btn.clicked.connect(self._handle_login)
+        self._register_btn = QPushButton("Create Account")
+        self._register_btn.setFixedSize(250, 40)
+        self._register_btn.setStyleSheet("background-color: #2ECC71; color: white; font-weight: bold; border-radius: 5px;")
+        self._register_btn.hide() # HIDDEN BY DEFAULT!
         
-        # כפתור הרשמה
-        self._register_btn = QPushButton("הרשם")
-        self._register_btn.setStyleSheet("font-size: 16px; padding: 10px; background-color: #2ECC71; color: white; font-weight: bold;")
-        self._register_btn.clicked.connect(self._handle_register)
+        # Mode Switcher Button (Looks like a text link)
+        self._switch_mode_btn = QPushButton("Don't have an account? Register here.")
+        self._switch_mode_btn.setCursor(Qt.PointingHandCursor)
+        self._switch_mode_btn.setStyleSheet("color: #3498DB; border: none; font-size: 14px; text-decoration: underline;")
+        self._switch_mode_btn.clicked.connect(self._toggle_mode)
         
-        buttons_layout.addWidget(self._login_btn)
-        buttons_layout.addWidget(self._register_btn)
+        # Add everything to the layout
+        layout.addWidget(title)
+        layout.addWidget(self._subtitle)
+        layout.addWidget(self._username_input, alignment=Qt.AlignCenter)
+        layout.addWidget(self._email_input, alignment=Qt.AlignCenter)
+        layout.addWidget(self._password_input, alignment=Qt.AlignCenter)
         
-        # הוספת כל הרכיבים לפריסה הראשית
-        main_layout.addWidget(title_label)
-        main_layout.addWidget(self._username_input)
-        main_layout.addWidget(self._password_input)
-        main_layout.addLayout(buttons_layout)
+        # Add some spacing before buttons
+        layout.addSpacing(10)
+        layout.addWidget(self._login_btn, alignment=Qt.AlignCenter)
+        layout.addWidget(self._register_btn, alignment=Qt.AlignCenter)
+        layout.addSpacing(10)
+        layout.addWidget(self._switch_mode_btn, alignment=Qt.AlignCenter)
         
-        self.setLayout(main_layout)
+        self.setLayout(layout)
 
-    def _handle_login(self):
-        """
-        פונקציה המופעלת בעת לחיצה על כפתור התחברות.
-        בהמשך נחבר אותה ללוגיקת האבטחה והרשת.
-        """
-        username = self._username_input.text()
-        password = self._password_input.text()
-        
-        if not username or not password:
-            QMessageBox.warning(self, "שגיאה", "אנא הזן שם משתמש וסיסמה.")
-            return
-            
-        print(f"Attempting to login with Username: {username}")
-        # כאן תהיה קריאה למחלקת הלוגיקה שתבדוק את הסיסמה מול השרת
-
-    def _handle_register(self):
-        """
-        פונקציה המופעלת בעת לחיצה על כפתור הרשמה.
-        """
-        print("Navigate to Registration screen...")
-        QMessageBox.information(self, "הרשמה", "מעבר למסך הרשמה (יפותח בהמשך)")
-
-# קוד קטן לבדיקה מהירה של המסך
-if __name__ == "__main__":
-    import sys
-    from PyQt5.QtWidgets import QApplication
-    app = QApplication(sys.argv)
-    window = LoginView()
-    window.show()
-    sys.exit(app.exec_())
+    def _toggle_mode(self):
+        """Switches the UI between Login and Register modes."""
+        if self.is_login_mode:
+            # Switch TO Register Mode
+            self._subtitle.setText("Create a new account to join the competition.")
+            self._email_input.show()
+            self._login_btn.hide()
+            self._register_btn.show()
+            self._switch_mode_btn.setText("Already have an account? Log in.")
+            self.is_login_mode = False
+        else:
+            # Switch TO Login Mode
+            self._subtitle.setText("Welcome back! Please log in.")
+            self._email_input.hide()
+            self._login_btn.show()
+            self._register_btn.hide()
+            self._switch_mode_btn.setText("Don't have an account? Register here.")
+            self.is_login_mode = True
