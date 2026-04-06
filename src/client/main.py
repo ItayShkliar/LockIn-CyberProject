@@ -10,6 +10,7 @@ from ui.login_view import LoginView
 from ui.dashboard_view import DashboardView
 from ui.settings_view import SettingsView
 from logic.session_manager import SessionManager
+from logic.config_manager import ConfigManager  # <-- NEW IMPORT
 
 class LockInApp(QMainWindow):
     def __init__(self):
@@ -17,12 +18,14 @@ class LockInApp(QMainWindow):
         self.setWindowTitle("Lock In - Focus App")
         self.setFixedSize(800, 600)
         
-        self.apps_to_block = []
+        # Initialize our new Config Manager
+        self._config_manager = ConfigManager()
         
-        # Replace AppMonitor with our new SessionManager
+        # Load saved apps from the JSON file!
+        saved_data = self._config_manager.load_config()
+        self.apps_to_block = saved_data.get("blocked_apps", [])
+        
         self._session_manager = SessionManager() 
-        
-        # Create a timer to update the dashboard live
         self._timer = QTimer()
         self._timer.timeout.connect(self._update_live_stats)
         
@@ -52,7 +55,12 @@ class LockInApp(QMainWindow):
         self._stacked_widget.setCurrentIndex(2)
         
     def _save_settings_and_return(self):
+        # 1. Get the newly selected apps from the UI
         self.apps_to_block = self._settings_view.get_selected_apps()
+        
+        # 2. Save them to the JSON file using our config manager
+        self._config_manager.save_config({"blocked_apps": self.apps_to_block})
+        
         print(f"[Main] Saved apps to block: {self.apps_to_block}")
         self._stacked_widget.setCurrentIndex(1)
 
@@ -62,9 +70,8 @@ class LockInApp(QMainWindow):
                 QMessageBox.warning(self, "No Apps Selected", "Please select at least one app in Settings!")
                 return
             
-            # Start the manager and the UI timer
             self._session_manager.start_session(self.apps_to_block)
-            self._timer.start(1000) # Trigger _update_live_stats every 1000 milliseconds
+            self._timer.start(1000) 
             
             self._dashboard_view._start_session_btn.setText("Stop Session")
             self._dashboard_view._start_session_btn.setStyleSheet("""
@@ -74,7 +81,6 @@ class LockInApp(QMainWindow):
             self._dashboard_view._settings_btn.setEnabled(False)
             
         else:
-            # Stop the manager and the timer
             stats = self._session_manager.stop_session()
             self._timer.stop()
             
@@ -91,15 +97,11 @@ class LockInApp(QMainWindow):
             )
 
     def _update_live_stats(self):
-        """Fetches current stats from the manager and updates the Dashboard UI."""
         elapsed, dists, score = self._session_manager.get_current_stats()
-        
-        # Format seconds into HH:MM:SS
         mins, secs = divmod(elapsed, 60)
         hours, mins = divmod(mins, 60)
         time_str = f"{hours:02d}:{mins:02d}:{secs:02d}"
         
-        # Send the strings to the dashboard view
         self._dashboard_view.update_stats(time_str, str(score), str(dists))
 
 if __name__ == "__main__":
