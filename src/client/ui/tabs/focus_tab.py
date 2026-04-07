@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QHBoxLayout, QFrame
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QHBoxLayout, QFrame, QLineEdit
 from PyQt5.QtCore import Qt
 
 class FocusTab(QWidget):
@@ -18,6 +18,11 @@ class FocusTab(QWidget):
         setup_layout = QVBoxLayout(self.setup_widget)
         setup_layout.setContentsMargins(0, 0, 0, 0)
         
+        self.desc_input = QLineEdit()
+        self.desc_input.setPlaceholderText("What are you focusing on? (e.g., 'Calculus HW')")
+        self.desc_input.setStyleSheet("background-color: #202225; color: white; padding: 10px; border-radius: 5px; font-size: 14px; margin-bottom: 10px;")
+        
+        setup_layout.addWidget(self.desc_input)
         instructions = QLabel("Select the apps you intend to work on, then Lock In.")
         instructions.setStyleSheet("color: #B9BBBE; font-size: 14px;")
         setup_layout.addWidget(instructions)
@@ -107,6 +112,11 @@ class FocusTab(QWidget):
         self.score_label.setText("🏆 Focus Score: 100")
         self.active_widget.show()
 
+    def get_description(self) -> str:
+        """Returns the typed description, or a default string if empty."""
+        text = self.desc_input.text().strip()
+        return text if text else "Focus Session"
+    
     def set_setup_mode(self):
         """Brings the scanner back and hides the live stats."""
         self.active_widget.hide()

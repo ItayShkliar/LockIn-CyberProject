@@ -57,6 +57,7 @@ class LockInApp(QMainWindow):
 
     def _connect_signals(self):
         self.login_view._login_btn.clicked.connect(self.handle_login)
+        self.login_view._register_btn.clicked.connect(self.handle_register)
         
         self.main_window.nav_buttons["home_btn"].clicked.connect(lambda: self.main_window.switch_tab(0))
         self.main_window.nav_buttons["focus_btn"].clicked.connect(lambda: self.main_window.switch_tab(1))
@@ -73,7 +74,44 @@ class LockInApp(QMainWindow):
     # Action Handlers
     # ==========================================
     def handle_login(self):
-        self.main_stack.setCurrentWidget(self.main_window)
+        """Grabs input from UI and logs into the Flask Server."""
+        username = self.login_view._username_input.text()
+        password = self.login_view._password_input.text()
+        
+        if not username or not password:
+            QMessageBox.warning(self, "Error", "Please enter both username and password.")
+            return
+            
+        # Send to server!
+        response = self.network_client.login(username, password)
+        
+        if response.get("status") == "success":
+            # Success! Switch screen and sync any offline files
+            self.main_stack.setCurrentWidget(self.main_window)
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(1000, self.network_client.sync_offline_sessions)
+        else:
+            # Show the error from the server (e.g. "Invalid password")
+            QMessageBox.critical(self, "Login Failed", response.get("message", "Connection error. Is the server running?"))
+
+    def handle_register(self):
+        """Registers a new user in the Database."""
+        username = self.login_view._username_input.text()
+        email = self.login_view._email_input.text()
+        password = self.login_view._password_input.text()
+        
+        if not username or not email or not password:
+            QMessageBox.warning(self, "Error", "Please fill in all fields.")
+            return
+            
+        # Send to server!
+        response = self.network_client.register(username, email, password)
+        
+        if response.get("status") == "success":
+            QMessageBox.information(self, "Success", "Registration successful! You can now log in.")
+            self.login_view._toggle_mode() # Switch UI back to login mode
+        else:
+            QMessageBox.critical(self, "Registration Failed", response.get("message", "Connection error. Is the server running?"))
 
     def handle_logout(self):
         self.network_client.logged_in_user_id = None
@@ -98,32 +136,43 @@ class LockInApp(QMainWindow):
                 QMessageBox.warning(self, "Hold Up", "Please scan and select at least one app to focus on!")
                 return
                 
-            self.session_manager.start_session(selected_apps)
+            # Get the text from the new description box!
+            desc = self.focus_tab.get_description()
+                
+            self.session_manager.start_session(selected_apps, desc)
             
-            # 2. Update UI to "Active" mode (Hides scanner, shows chosen apps)
+            # 2. Update UI
             self.focus_tab.set_active_mode(selected_apps)
             self.focus_tab.start_btn.setText("STOP SESSION")
             self.focus_tab.start_btn.setStyleSheet("background-color: #E74C3C; color: white; font-size: 24px; font-weight: bold; border-radius: 10px;")
-            
-            # 3. Start ticking the timer!
             self.session_timer.start(1000) 
         else:
             # 1. Stop the Session
             self.session_timer.stop()
             stats = self.session_manager.stop_session()
             
-            # 2. Reset UI back to "Setup" mode (Brings scanner back)
+            # 2. Reset UI
             self.focus_tab.set_setup_mode()
             self.focus_tab.start_btn.setText("LOCK IN")
             self.focus_tab.start_btn.setStyleSheet("background-color: #43B581; color: white; font-size: 24px; font-weight: bold; border-radius: 10px;")
             
-            # 3. Show the results!
+            # ---> 3. UPLOAD TO SERVER <---
+            upload_result = self.network_client.upload_session(stats)
+            
+            # Note if it was saved locally
+            offline_msg = ""
+            if upload_result.get("status") == "offline":
+                offline_msg = "\n\n Network error. Session saved safely to your device and will sync later!"
+            
+            # 4. Show the results
             QMessageBox.information(self, "Session Complete!", 
                 f"Great job!\n\n"
+                f"Task: {stats['description']}\n"
                 f"⏱️ Total Time: {stats['total_time_seconds']}s\n"
                 f"🎯 Focus Time: {stats['focus_time_seconds']}s\n"
-                f"❌ Distractions: {stats['distractions']}\n"
-                f"🏆 Final Score: {stats['final_score']}")
+                f"❌ Distractions: {stats['distraction_count']}\n"
+                f"🏆 Final Score: {stats['final_score']}"
+                f"{offline_msg}") # Add the offline message if needed
 
     def update_timer_ui(self):
         """Runs every 1 second while a session is active to update the clock and stats."""
