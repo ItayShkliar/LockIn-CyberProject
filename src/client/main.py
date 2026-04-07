@@ -1,143 +1,150 @@
+"""
+Main Application Entry Point
+Orchestrates the UI views and Logic managers.
+"""
 import sys
-import datetime
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer # <-- We need this for the live timer!
 
+# Import UI Views
 from ui.login_view import LoginView
-from ui.dashboard_view import DashboardView
-from ui.settings_view import SettingsView
+from ui.main_window_view import MainWindowView
+from ui.tabs.home_tab import HomeTab
+from ui.tabs.focus_tab import FocusTab
+from ui.tabs.stats_tab import StatsTab
+from ui.tabs.settings_tab import SettingsTab
+
+# Import Logic Managers
+from logic.network_client import NetworkClient
 from logic.session_manager import SessionManager
-from logic.config_manager import ConfigManager
-from logic.network_client import NetworkClient # <-- NEW IMPORT
 
 class LockInApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Lock In - Focus App")
-        self.setFixedSize(800, 600)
+        self.setWindowTitle("Lock In - Productivity")
+        self.resize(1000, 700) 
+        self.setStyleSheet("background-color: #36393F;") 
         
-        self._config_manager = ConfigManager()
-        saved_data = self._config_manager.load_config()
-        self.apps_to_block = saved_data.get("blocked_apps", [])
+        self.network_client = NetworkClient()
+        self.session_manager = SessionManager()
         
-        self._session_manager = SessionManager() 
-        self._network_client = NetworkClient() # <-- INITIALIZE NETWORK CLIENT
+        # Setup the UI Timer
+        self.session_timer = QTimer()
+        self.session_timer.timeout.connect(self.update_timer_ui)
         
-        self._timer = QTimer()
-        self._timer.timeout.connect(self._update_live_stats)
+        self.main_stack = QStackedWidget()
+        self.setCentralWidget(self.main_stack)
         
-        self._stacked_widget = QStackedWidget()
-        self.setCentralWidget(self._stacked_widget)
+        self.login_view = LoginView()
+        self.main_window = MainWindowView()
         
-        self._login_view = LoginView()
-        self._dashboard_view = DashboardView()
-        self._settings_view = SettingsView()
+        self.main_stack.addWidget(self.login_view)
+        self.main_stack.addWidget(self.main_window)
         
-        self._stacked_widget.addWidget(self._login_view)     
-        self._stacked_widget.addWidget(self._dashboard_view) 
-        self._stacked_widget.addWidget(self._settings_view)  
-        
-        # Connect Login/Register Buttons
-        self._login_view._login_btn.clicked.connect(self._handle_login)
-        self._login_view._register_btn.clicked.connect(self._handle_register) # <-- NEW
-        
-        self._dashboard_view._settings_btn.clicked.connect(self._go_to_settings)
-        self._settings_view._save_btn.clicked.connect(self._save_settings_and_return)
-        self._dashboard_view._start_session_btn.clicked.connect(self._toggle_session)
-        
-    def _handle_login(self):
-        """Attempts to log the user in via the server."""
-        username = self._login_view._username_input.text()
-        password = self._login_view._password_input.text()
-        
-        if not username or not password:
-            QMessageBox.warning(self, "Error", "Please enter both username and password!")
-            return
-            
-        # Call the server
-        response = self._network_client.login(username, password)
-        
-        if response.get("status") == "success":
-            self._dashboard_view._welcome_label.setText(f"Welcome back, {username}!")
-            self._stacked_widget.setCurrentIndex(1) # Go to Dashboard
-        else:
-            QMessageBox.critical(self, "Login Failed", response.get("message", "Unknown error occurred"))
+        self._setup_tabs()
+        self._connect_signals()
 
-    def _handle_register(self):
-        """Attempts to register a new user via the server."""
-        username = self._login_view._username_input.text()
-        password = self._login_view._password_input.text()
-        email = self._login_view._email_input.text()
+    def _setup_tabs(self):
+        self.home_tab = HomeTab()
+        self.focus_tab = FocusTab()
+        self.stats_tab = StatsTab()
+        self.settings_tab = SettingsTab()
         
-        if not username or not password or not email:
-            QMessageBox.warning(self, "Error", "Please enter username, email, and password to register!")
-            return
-            
-        # Call the server
-        response = self._network_client.register(username, email, password)
-        
-        if response.get("status") == "success":
-            QMessageBox.information(self, "Success", "Registration successful! You can now log in.")
-            self._login_view._email_input.clear() # Clear email so they can log in
-        else:
-            QMessageBox.critical(self, "Registration Failed", response.get("message", "Unknown error occurred"))
+        self.main_window.add_tab(self.home_tab)
+        self.main_window.add_tab(self.focus_tab)
+        self.main_window.add_tab(self.stats_tab)
+        self.main_window.add_tab(self.settings_tab)
 
-    # ... (Keep all the remaining methods _go_to_settings, _save_settings_and_return, _toggle_session, _update_live_stats exactly as they were) ...
-    def _go_to_settings(self):
-        self._stacked_widget.setCurrentIndex(2)
+    def _connect_signals(self):
+        self.login_view._login_btn.clicked.connect(self.handle_login)
         
-    def _save_settings_and_return(self):
-        self.apps_to_block = self._settings_view.get_selected_apps()
-        self._config_manager.save_config({"blocked_apps": self.apps_to_block})
-        self._stacked_widget.setCurrentIndex(1)
+        self.main_window.nav_buttons["home_btn"].clicked.connect(lambda: self.main_window.switch_tab(0))
+        self.main_window.nav_buttons["focus_btn"].clicked.connect(lambda: self.main_window.switch_tab(1))
+        self.main_window.nav_buttons["stats_btn"].clicked.connect(lambda: self.main_window.switch_tab(2))
+        self.main_window.nav_buttons["settings_btn"].clicked.connect(lambda: self.main_window.switch_tab(3))
+        self.main_window.logout_btn.clicked.connect(self.handle_logout)
+        
+        self.focus_tab.scan_btn.clicked.connect(self.scan_and_populate_apps)
+        
+        # ---> WIRE UP THE START BUTTON <---
+        self.focus_tab.start_btn.clicked.connect(self.toggle_session)
 
-    def _toggle_session(self):
-        if not self._session_manager.is_active:
-            if not self.apps_to_block: # (This is now your Focus Apps list!)
-                QMessageBox.warning(self, "No Apps Selected", "Please select the apps you want to focus on in Settings!")
+    # ==========================================
+    # Action Handlers
+    # ==========================================
+    def handle_login(self):
+        self.main_stack.setCurrentWidget(self.main_window)
+
+    def handle_logout(self):
+        self.network_client.logged_in_user_id = None
+        self.main_stack.setCurrentWidget(self.login_view)
+
+    def scan_and_populate_apps(self):
+        self.focus_tab.scan_btn.setText("Scanning...")
+        QApplication.processEvents() 
+        try:
+            apps_list = self.session_manager.get_available_apps()
+            self.focus_tab.populate_apps(apps_list)
+        except Exception as e:
+            print(f"[Error] Failed to scan apps: {e}")
+        finally:
+            self.focus_tab.scan_btn.setText("🔄 Scan Running Apps")
+
+    def toggle_session(self):
+        if not self.session_manager.is_active:
+            # 1. Start the Session
+            selected_apps = self.focus_tab.get_selected_apps()
+            if not selected_apps:
+                QMessageBox.warning(self, "Hold Up", "Please scan and select at least one app to focus on!")
                 return
-            self._session_manager.start_session(self.apps_to_block)
-            self._timer.start(1000) 
-            self._dashboard_view._start_session_btn.setText("Stop Session")
-            self._dashboard_view._start_session_btn.setStyleSheet("QPushButton { background-color: #95A5A6; color: white; font-size: 20px; font-weight: bold; border-radius: 10px; } QPushButton:hover { background-color: #7F8C8D; }")
-            self._dashboard_view._settings_btn.setEnabled(False)
+                
+            self.session_manager.start_session(selected_apps)
+            
+            # 2. Update UI to "Active" mode (Hides scanner, shows chosen apps)
+            self.focus_tab.set_active_mode(selected_apps)
+            self.focus_tab.start_btn.setText("STOP SESSION")
+            self.focus_tab.start_btn.setStyleSheet("background-color: #E74C3C; color: white; font-size: 24px; font-weight: bold; border-radius: 10px;")
+            
+            # 3. Start ticking the timer!
+            self.session_timer.start(1000) 
         else:
-            # STOPPING THE SESSION
-            stats = self._session_manager.stop_session()
-            self._timer.stop()
+            # 1. Stop the Session
+            self.session_timer.stop()
+            stats = self.session_manager.stop_session()
             
-            end_time = datetime.datetime.now()
-            start_time = end_time - datetime.timedelta(seconds=stats['total_time_seconds'])
+            # 2. Reset UI back to "Setup" mode (Brings scanner back)
+            self.focus_tab.set_setup_mode()
+            self.focus_tab.start_btn.setText("LOCK IN")
+            self.focus_tab.start_btn.setStyleSheet("background-color: #43B581; color: white; font-size: 24px; font-weight: bold; border-radius: 10px;")
             
-            session_data = {
-                "start_time": start_time.isoformat(),
-                "end_time": end_time.isoformat(),
-                "focus_time_seconds": stats['focus_time_seconds'], # <--- NOW UPLOADING REAL FOCUS TIME
-                "distraction_count": stats['distractions'],
-                "description": "Desktop Focus Session",
-                "status": "completed"
-            }
-            
-            if self._network_client.logged_in_user_id:
-                response = self._network_client.upload_session(session_data)
-                if response.get("status") == "success":
-                    print(f"[Main] Session successfully uploaded to database! ID: {response.get('session_id')}")
-            
-            self._dashboard_view._start_session_btn.setText("Lock In! (Start Session)")
-            self._dashboard_view._start_session_btn.setStyleSheet("QPushButton { background-color: #E74C3C; color: white; font-size: 20px; font-weight: bold; border-radius: 10px; } QPushButton:hover { background-color: #C0392B; }")
-            self._dashboard_view._settings_btn.setEnabled(True) 
-            
-            QMessageBox.information(self, "Session Ended", f"Total Time: {stats['total_time_seconds']}s\nActual Focus Time: {stats['focus_time_seconds']}s\nDistractions: {stats['distractions']}\nFinal Score: {stats['final_score']}")
+            # 3. Show the results!
+            QMessageBox.information(self, "Session Complete!", 
+                f"Great job!\n\n"
+                f"⏱️ Total Time: {stats['total_time_seconds']}s\n"
+                f"🎯 Focus Time: {stats['focus_time_seconds']}s\n"
+                f"❌ Distractions: {stats['distractions']}\n"
+                f"🏆 Final Score: {stats['final_score']}")
 
-    def _update_live_stats(self):
-        total, focus, dists, score = self._session_manager.get_current_stats()
-        mins, secs = divmod(total, 60)
-        hours, mins = divmod(mins, 60)
-        time_str = f"{hours:02d}:{mins:02d}:{secs:02d}"
+    def update_timer_ui(self):
+        """Runs every 1 second while a session is active to update the clock and stats."""
+        total_sec, focus_sec, dists, score = self.session_manager.get_current_stats()
         
-        # We can update the dashboard to show Focus Time vs Total Time later if you want!
-        self._dashboard_view.update_stats(time_str, str(score), str(dists))
+        # Math to format seconds into HH:MM:SS
+        m, s = divmod(total_sec, 60)
+        h, m = divmod(m, 60)
+        time_string = f"{h:02d}:{m:02d}:{s:02d}"
         
+        # Update Timer
+        self.focus_tab.timer_label.setText(time_string)
+        
+        # Update Live Stats
+        self.focus_tab.distractions_label.setText(f"👀 Distractions: {dists}")
+        
+        # Optional: Change score color if it drops below 70
+        score_color = "#FAA61A" if score >= 70 else "#E74C3C" 
+        self.focus_tab.score_label.setStyleSheet(f"font-size: 20px; color: {score_color}; font-weight: bold;")
+        self.focus_tab.score_label.setText(f"🏆 Focus Score: {score}")
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = LockInApp()
