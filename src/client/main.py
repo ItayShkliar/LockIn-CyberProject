@@ -4,7 +4,7 @@ Orchestrates the UI views and Logic managers.
 """
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
-from PyQt5.QtCore import QTimer # <-- We need this for the live timer!
+from PyQt5.QtCore import QTimer #
 
 # Import UI Views
 from ui.login_view import LoginView
