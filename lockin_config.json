@@ -1,6 +1,3 @@
 {
-    "blocked_apps": [
-        "chrome.exe",
-        "code.exe"
-    ]
+    "blocked_apps": []
 }
