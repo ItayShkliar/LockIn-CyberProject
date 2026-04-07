@@ -6,62 +6,51 @@ from flask import Blueprint, request, jsonify
 import sqlite3
 import os
 
+from logic.stats_engine import StatsEngine # <-- IMPORT ENGINE
+from database.db_manager import get_user_stats, update_user_stats # <-- IMPORT DB HELPERS
+
 session_api = Blueprint('session_api', __name__)
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "lockin.db")
 
 @session_api.route('/api/session/upload', methods=['POST'])
 def upload_session():
-    """Endpoint to upload a completed focus session."""
     data = request.get_json()
     
-    # 1. Validate Input (Based on Design Document requirements)
     if not data or 'user_id' not in data or 'session_data' not in data:
         return jsonify({"status": "error", "message": "Missing user_id or session_data"}), 400
         
     user_id = data['user_id']
     session_data = data['session_data']
     
-    # Extract session fields
-    start_time = session_data.get('start_time')
-    end_time = session_data.get('end_time')
-    focus_time_seconds = session_data.get('focus_time_seconds', 0)
-    distraction_count = session_data.get('distraction_count', 0)
-    description = session_data.get('description', 'Focus Session')
-    status = session_data.get('status', 'completed')
-    
-    if not start_time or not end_time:
-        return jsonify({"status": "error", "message": "Missing start_time or end_time"}), 400
-        
-    # 2. Save to Database
     try:
+        # 1. Save the raw session to the Sessions table
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        
         cursor.execute("""
             INSERT INTO Sessions (
                 user_id, start_time, end_time, focus_time_seconds, 
                 distraction_count, description, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
-            user_id, start_time, end_time, focus_time_seconds, 
-            distraction_count, description, status
+            user_id, session_data.get('start_time'), session_data.get('end_time'), 
+            session_data.get('focus_time_seconds', 0), session_data.get('distraction_count', 0), 
+            session_data.get('description', 'Focus Session'), session_data.get('status', 'completed')
         ))
-        
-        session_id = cursor.lastrowid
         conn.commit()
         conn.close()
         
-        print(f"[API] Session {session_id} saved for User {user_id}. Focus Time: {focus_time_seconds}s")
-        return jsonify({
-            "status": "success", 
-            "session_id": session_id, 
-            "message": "Session uploaded successfully"
-        }), 201
+        # 2. Grab their current stats
+        current_stats = get_user_stats(user_id)
         
-    except sqlite3.IntegrityError:
-        # This triggers if the user_id doesn't exist in the Users table (Foreign Key constraint)
-        conn.close()
-        return jsonify({"status": "error", "message": "Invalid user_id"}), 400
+        if current_stats:
+            # 3. Ask the Engine to calculate the new totals
+            updated_stats = StatsEngine.calculate_updated_totals(current_stats, session_data)
+            
+            # 4. Save the updated totals to the UserStats table
+            update_user_stats(user_id, updated_stats)
+            print(f"[API] Updated stats for User {user_id}. New Total Focus: {updated_stats['total_focus_time_seconds']}s")
+            
+        return jsonify({"status": "success", "message": "Session and stats updated successfully"}), 201
         
     except Exception as e:
         print(f"[API Error] Session upload failed: {e}")

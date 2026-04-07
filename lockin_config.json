@@ -1,3 +1,5 @@
 {
-    "blocked_apps": []
+    "blocked_apps": [
+        "code.exe"
+    ]
 }

@@ -123,5 +123,65 @@ def init_db():
     conn.close()
     print(f"[Database] Successfully generated all tables at: {DB_PATH}")
 
+def create_initial_user_stats(user_id: int):
+    """Creates a blank stats row for a newly registered user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO UserStats (user_id) VALUES (?)
+    """, (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_user_stats(user_id: int) -> dict:
+    """Fetches the user's current stats from the database as a dictionary."""
+    conn = get_connection()
+    # Row factory allows us to access columns by name instead of index!
+    conn.row_factory = sqlite3.Row 
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM UserStats WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        return dict(row)
+    return None
+
+def update_user_stats(user_id: int, new_stats: dict):
+    """Saves the freshly calculated stats back to the database."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE UserStats 
+        SET total_sessions = ?, 
+            total_focus_time_seconds = ?, 
+            total_distractions = ?, 
+            average_session_length_seconds = ?, 
+            best_session_seconds = ?,
+            last_updated = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+    """, (
+        new_stats['total_sessions'],
+        new_stats['total_focus_time_seconds'],
+        new_stats['total_distractions'],
+        new_stats['average_session_length_seconds'],
+        new_stats['best_session_seconds'],
+        user_id
+    ))
+    conn.commit()
+    conn.close()
+
+def reset_db():
+    """Deletes the existing database file and creates a fresh one."""
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+        print(f"[Database] Deleted old database at {DB_PATH}")
+    else:
+        print("[Database] No existing database found.")
+        
+    init_db()
+    print("[Database] Fresh database successfully generated!")
+    
+
 if __name__ == "__main__":
     init_db()

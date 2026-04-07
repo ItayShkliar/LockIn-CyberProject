@@ -2,6 +2,7 @@
 User API Routes
 Handles all endpoints related to user management (Register, Login, Profile).
 """
+from database.db_manager import create_initial_user_stats
 from flask import Blueprint, request, jsonify
 import sqlite3
 import os
@@ -43,6 +44,9 @@ def register():
         
         new_user_id = cursor.lastrowid
         conn.commit()
+        
+        create_initial_user_stats(new_user_id)
+        
         conn.close()
         
         print(f"[API] New user registered: {username} (ID: {new_user_id})")
