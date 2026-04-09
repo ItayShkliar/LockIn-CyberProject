@@ -171,6 +171,20 @@ def update_user_stats(user_id: int, new_stats: dict):
     conn.commit()
     conn.close()
 
+# New function to fetch all sessions for a user
+def get_user_sessions(user_id: int) -> list:
+    """Returns a list of session dictionaries for the given user."""
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT session_id, start_time, end_time, focus_time_seconds, distraction_count, description, status FROM Sessions WHERE user_id = ? ORDER BY start_time DESC",
+        (user_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
 def reset_db():
     """Deletes the existing database file and creates a fresh one."""
     if os.path.exists(DB_PATH):
