@@ -98,3 +98,12 @@ class NetworkClient:
         else:
             with open(self.cache_file, 'w') as f:
                 json.dump(remaining_data, f, indent=4)
+    
+    def get_sessions(self, user_id: int) -> dict:
+        """Fetches the user's session history from the server."""
+        url = f"{self.base_url}/api/sessions/{user_id}"
+        try:
+            response = self.session.get(url, timeout=5)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {"status": "error", "message": f"Connection error: {e}"}

@@ -7,8 +7,7 @@ import sqlite3
 import os
 
 from logic.stats_engine import StatsEngine # <-- IMPORT ENGINE
-from database.db_manager import get_user_stats, update_user_stats # <-- IMPORT DB HELPERS
-
+from database.db_manager import get_user_stats, update_user_stats, get_user_sessions # <-- Added get_user_sessions
 session_api = Blueprint('session_api', __name__)
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "lockin.db")
 
@@ -54,4 +53,14 @@ def upload_session():
         
     except Exception as e:
         print(f"[API Error] Session upload failed: {e}")
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    
+@session_api.route('/api/sessions/<int:user_id>', methods=['GET'])
+def get_sessions(user_id):
+    """Fetches all past sessions for a specific user."""
+    try:
+        sessions = get_user_sessions(user_id)
+        return jsonify({"status": "success", "sessions": sessions}), 200
+    except Exception as e:
+        print(f"[API Error] Failed to fetch sessions: {e}")
         return jsonify({"status": "error", "message": "Internal server error"}), 500

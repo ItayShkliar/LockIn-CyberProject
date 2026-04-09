@@ -4,7 +4,7 @@ Orchestrates the UI views and Logic managers.
 """
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
-from PyQt5.QtCore import QTimer #
+from PyQt5.QtCore import QTimer 
 
 # Import UI Views
 from ui.login_view import LoginView
@@ -47,7 +47,7 @@ class LockInApp(QMainWindow):
     def _setup_tabs(self):
         self.home_tab = HomeTab()
         self.focus_tab = FocusTab()
-        self.stats_tab = StatsTab()
+        self.stats_tab = StatsTab(self.network_client)
         self.settings_tab = SettingsTab()
         
         self.main_window.add_tab(self.home_tab)
@@ -90,6 +90,8 @@ class LockInApp(QMainWindow):
             self.main_stack.setCurrentWidget(self.main_window)
             from PyQt5.QtCore import QTimer
             QTimer.singleShot(1000, self.network_client.sync_offline_sessions)
+            
+            self.stats_tab.load_sessions()
         else:
             # Show the error from the server (e.g. "Invalid password")
             QMessageBox.critical(self, "Login Failed", response.get("message", "Connection error. Is the server running?"))
