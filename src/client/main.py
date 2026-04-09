@@ -11,6 +11,8 @@ from ui.login_view import LoginView
 from ui.main_window_view import MainWindowView
 from ui.tabs.home_tab import HomeTab
 from ui.tabs.focus_tab import FocusTab
+from ui.tabs.competitions_tab import CompetitionsTab # <-- NEW
+from ui.tabs.leaderboard_tab import LeaderboardTab   # <-- NEW
 from ui.tabs.stats_tab import StatsTab
 from ui.tabs.settings_tab import SettingsTab
 
@@ -47,34 +49,40 @@ class LockInApp(QMainWindow):
     def _setup_tabs(self):
         self.home_tab = HomeTab()
         self.focus_tab = FocusTab()
+        self.comps_tab = CompetitionsTab(self.network_client)       # <-- NEW
+        self.leaderboard_tab = LeaderboardTab(self.network_client)  # <-- NEW
         self.stats_tab = StatsTab(self.network_client)
         self.settings_tab = SettingsTab()
         
-        self.main_window.add_tab(self.home_tab)
-        self.main_window.add_tab(self.focus_tab)
-        self.main_window.add_tab(self.stats_tab)
-        self.main_window.add_tab(self.settings_tab)
+        self.main_window.add_tab(self.home_tab)          # Index 0
+        self.main_window.add_tab(self.focus_tab)         # Index 1
+        self.main_window.add_tab(self.comps_tab)         # Index 2 <-- NEW
+        self.main_window.add_tab(self.leaderboard_tab)   # Index 3 <-- NEW
+        self.main_window.add_tab(self.stats_tab)         # Index 4
+        self.main_window.add_tab(self.settings_tab)      # Index 5
 
     def _connect_signals(self):
         self.login_view._login_btn.clicked.connect(self.handle_login)
         self.login_view._register_btn.clicked.connect(self.handle_register)
         
+        # Wire up the sidebar navigation!
         self.main_window.nav_buttons["home_btn"].clicked.connect(lambda: self.main_window.switch_tab(0))
         self.main_window.nav_buttons["focus_btn"].clicked.connect(lambda: self.main_window.switch_tab(1))
-        self.main_window.nav_buttons["stats_btn"].clicked.connect(lambda: self.main_window.switch_tab(2))
-        self.main_window.nav_buttons["settings_btn"].clicked.connect(lambda: self.main_window.switch_tab(3))
+        self.main_window.nav_buttons["competitions_btn"].clicked.connect(lambda: self.main_window.switch_tab(2)) # <-- NEW
+        self.main_window.nav_buttons["leaderboard_btn"].clicked.connect(lambda: self.main_window.switch_tab(3))  # <-- NEW
+        self.main_window.nav_buttons["stats_btn"].clicked.connect(lambda: self.main_window.switch_tab(4))
+        self.main_window.nav_buttons["settings_btn"].clicked.connect(lambda: self.main_window.switch_tab(5))
+        
         self.main_window.logout_btn.clicked.connect(self.handle_logout)
         
         self.focus_tab.scan_btn.clicked.connect(self.scan_and_populate_apps)
-        
-        # ---> WIRE UP THE START BUTTON <---
         self.focus_tab.start_btn.clicked.connect(self.toggle_session)
 
     # ==========================================
     # Action Handlers
     # ==========================================
     def handle_login(self):
-        """Grabs input from UI and logs into the Flask Server."""
+        """Grabs input from UI and logs into the Socket Server."""
         username = self.login_view._username_input.text()
         password = self.login_view._password_input.text()
         
@@ -82,22 +90,18 @@ class LockInApp(QMainWindow):
             QMessageBox.warning(self, "Error", "Please enter both username and password.")
             return
             
-        # Send to server!
         response = self.network_client.login(username, password)
         
         if response.get("status") == "success":
-            # Success! Switch screen and sync any offline files
             self.main_stack.setCurrentWidget(self.main_window)
             from PyQt5.QtCore import QTimer
             QTimer.singleShot(1000, self.network_client.sync_offline_sessions)
-            
             self.stats_tab.load_sessions()
         else:
-            # Show the error from the server (e.g. "Invalid password")
             QMessageBox.critical(self, "Login Failed", response.get("message", "Connection error. Is the server running?"))
 
     def handle_register(self):
-        """Registers a new user in the Database."""
+        """Registers a new user in the Database via Socket Server."""
         username = self.login_view._username_input.text()
         email = self.login_view._email_input.text()
         password = self.login_view._password_input.text()
@@ -106,12 +110,11 @@ class LockInApp(QMainWindow):
             QMessageBox.warning(self, "Error", "Please fill in all fields.")
             return
             
-        # Send to server!
         response = self.network_client.register(username, email, password)
         
         if response.get("status") == "success":
             QMessageBox.information(self, "Success", "Registration successful! You can now log in.")
-            self.login_view._toggle_mode() # Switch UI back to login mode
+            self.login_view._toggle_mode()
         else:
             QMessageBox.critical(self, "Registration Failed", response.get("message", "Connection error. Is the server running?"))
 
@@ -138,9 +141,7 @@ class LockInApp(QMainWindow):
                 QMessageBox.warning(self, "Hold Up", "Please scan and select at least one app to focus on!")
                 return
                 
-            # Get the text from the new description box!
             desc = self.focus_tab.get_description()
-                
             self.session_manager.start_session(selected_apps, desc)
             
             # 2. Update UI
@@ -161,7 +162,6 @@ class LockInApp(QMainWindow):
             # ---> 3. UPLOAD TO SERVER <---
             upload_result = self.network_client.upload_session(stats)
             
-            # Note if it was saved locally
             offline_msg = ""
             if upload_result.get("status") == "offline":
                 offline_msg = "\n\n Network error. Session saved safely to your device and will sync later!"
@@ -174,24 +174,19 @@ class LockInApp(QMainWindow):
                 f"🎯 Focus Time: {stats['focus_time_seconds']}s\n"
                 f"❌ Distractions: {stats['distraction_count']}\n"
                 f"🏆 Final Score: {stats['final_score']}"
-                f"{offline_msg}") # Add the offline message if needed
+                f"{offline_msg}")
 
     def update_timer_ui(self):
         """Runs every 1 second while a session is active to update the clock and stats."""
         total_sec, focus_sec, dists, score = self.session_manager.get_current_stats()
         
-        # Math to format seconds into HH:MM:SS
         m, s = divmod(total_sec, 60)
         h, m = divmod(m, 60)
         time_string = f"{h:02d}:{m:02d}:{s:02d}"
         
-        # Update Timer
         self.focus_tab.timer_label.setText(time_string)
-        
-        # Update Live Stats
         self.focus_tab.distractions_label.setText(f"👀 Distractions: {dists}")
         
-        # Optional: Change score color if it drops below 70
         score_color = "#FAA61A" if score >= 70 else "#E74C3C" 
         self.focus_tab.score_label.setStyleSheet(f"font-size: 20px; color: {score_color}; font-weight: bold;")
         self.focus_tab.score_label.setText(f"🏆 Focus Score: {score}")

@@ -29,7 +29,7 @@ class StatsTab(QWidget):
         
         # --- DYNAMIC TABLE ---
         self.history_table = QTableWidget()
-        self.history_table.setColumnCount(5) 
+        self.history_table.setColumnCount(6) 
         self.history_table.setHorizontalHeaderLabels(["Start Time", "End Time", "Duration (s)", "Focus (s)", "Distractions", "Description"])
         
         # Modern Dark Theme Styling

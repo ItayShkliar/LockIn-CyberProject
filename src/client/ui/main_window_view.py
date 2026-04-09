@@ -37,8 +37,10 @@ class MainWindowView(QWidget):
         self.nav_buttons = {}
         nav_items = [
             ("home_btn", "🏠 Home"),
-            ("focus_btn", "⏱️ Focus"),
-            ("stats_btn", "📊 All-Time Stats"),
+            ("focus_btn", "⏱️ Focus"),            
+            ("competitions_btn", "🏆 Competitions"), # <-- NEW
+            ("leaderboard_btn", "📊 Leaderboards"),  # <-- NEW
+            ("stats_btn", "📈 All-Time Stats"),
             ("settings_btn", "⚙️ Settings")
         ]
 
