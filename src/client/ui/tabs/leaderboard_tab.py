@@ -1,181 +1,186 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QTableWidget, QTableWidgetItem, 
-                             QHeaderView, QScrollArea, QFrame)
+"""
+Leaderboard Tab (v2)
+Shows both the Global Leaderboard (all users) and Competition-specific leaderboards.
+"""
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget,
+    QLineEdit, QFrame
+)
 from PyQt5.QtCore import Qt
-from datetime import datetime # <-- NEW IMPORT
+
 
 class LeaderboardTab(QWidget):
     def __init__(self, network_client):
         super().__init__()
         self.network_client = network_client
-        self._init_ui()
+        self._build_ui()
 
-    def _init_ui(self):
-        main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(40, 40, 40, 40)
-        main_layout.setSpacing(30)
+    def _build_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(30, 30, 30, 30)
 
-        # ==========================================
-        # LEFT PANEL: List of User's Rooms
-        # ==========================================
-        left_panel = QVBoxLayout()
-        
-        title = QLabel("🏆 My Rooms")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: white;")
-        left_panel.addWidget(title)
+        title = QLabel("Leaderboards")
+        title.setStyleSheet("font-size: 28px; font-weight: bold; color: white;")
+        layout.addWidget(title)
 
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
-        
-        self.rooms_container = QWidget()
-        self.rooms_container.setStyleSheet("background-color: transparent;")
-        self.rooms_layout = QVBoxLayout(self.rooms_container)
-        self.rooms_layout.setAlignment(Qt.AlignTop)
-        
-        self.scroll_area.setWidget(self.rooms_container)
-        left_panel.addWidget(self.scroll_area)
-        
-        self.refresh_rooms_btn = QPushButton("🔄 Refresh Rooms")
-        self.refresh_rooms_btn.setFixedHeight(40)
-        self.refresh_rooms_btn.setStyleSheet("background-color: #4F545C; color: white; font-weight: bold; border-radius: 5px;")
-        self.refresh_rooms_btn.clicked.connect(self.load_user_rooms)
-        left_panel.addWidget(self.refresh_rooms_btn)
-
-        # ==========================================
-        # RIGHT PANEL: The Leaderboard Table
-        # ==========================================
-        right_panel = QVBoxLayout()
-        
-        self.table_title = QLabel("📊 Select a room to view stats")
-        self.table_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #7289DA;")
-        right_panel.addWidget(self.table_title)
-
-        self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Rank", "Username", "Total Focus Time"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background-color: #2F3136;
-                color: white;
-                gridline-color: #202225;
-                border-radius: 5px;
-            }
-            QHeaderView::section {
-                background-color: #202225;
-                color: #7289DA;
-                font-weight: bold;
-                padding: 5px;
-            }
+        self.sub_tabs = QTabWidget()
+        self.sub_tabs.setStyleSheet("""
+            QTabWidget::pane { border: 1px solid #2F3136; background: #2F3136; border-radius: 8px; }
+            QTabBar::tab { background: #202225; color: #B9BBBE; padding: 8px 20px; border-radius: 4px; }
+            QTabBar::tab:selected { background: #7289DA; color: white; font-weight: bold; }
         """)
-        right_panel.addWidget(self.table)
 
-        main_layout.addLayout(left_panel, 1)
-        main_layout.addLayout(right_panel, 2)
-        
-        self.setLayout(main_layout)
+        self.sub_tabs.addTab(self._build_global_tab(), "Global Top 20")
+        self.sub_tabs.addTab(self._build_competition_tab(), "Competition Lookup")
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        self.load_user_rooms()
+        layout.addWidget(self.sub_tabs)
+        self.setLayout(layout)
 
-    def load_user_rooms(self):
-        # 1. Clear existing cards
-        for i in reversed(range(self.rooms_layout.count())): 
-            widget = self.rooms_layout.itemAt(i).widget()
-            if widget is not None: 
-                widget.deleteLater()
+    # -----------------------------------------------------------------------
+    # Global leaderboard tab
+    # -----------------------------------------------------------------------
 
-        # 2. Fetch from server
-        response = self.network_client.get_user_competitions()
+    def _build_global_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(15, 15, 15, 15)
+
+        header = QHBoxLayout()
+        subtitle = QLabel("Top 20 users by total focus time")
+        subtitle.setStyleSheet("color: #B9BBBE; font-size: 13px;")
+        header.addWidget(subtitle)
+        header.addStretch()
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setFixedWidth(100)
+        refresh_btn.setStyleSheet("background-color: #7289DA; color: white; border-radius: 4px; padding: 6px;")
+        refresh_btn.clicked.connect(self._load_global_leaderboard)
+        header.addWidget(refresh_btn)
+        layout.addLayout(header)
+
+        self.global_table = QTableWidget()
+        self.global_table.setColumnCount(6)
+        self.global_table.setHorizontalHeaderLabels(
+            ["Rank", "Username", "Total Focus", "Sessions", "Best Session", "Streak"]
+        )
+        self.global_table.setStyleSheet("""
+            QTableWidget { background-color: #202225; color: white; border: none; border-radius: 5px; gridline-color: #2F3136; }
+            QHeaderView::section { background-color: #2F3136; color: white; font-weight: bold; border: none; padding: 8px; }
+            QTableWidget::item { padding: 6px; }
+            QTableWidget::item:selected { background-color: #7289DA; }
+        """)
+        self.global_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.global_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.global_table.setAlternatingRowColors(True)
+        layout.addWidget(self.global_table)
+        return widget
+
+    def _load_global_leaderboard(self):
+        response = self.network_client.get_global_leaderboard(limit=20)
         if response.get("status") != "success":
             return
 
-        rooms = response.get("rooms", [])
-        if not rooms:
-            no_rooms = QLabel("You are not in any rooms yet.\nGo to the Competitions tab to join one!")
-            no_rooms.setStyleSheet("color: #B9BBBE; font-size: 14px;")
-            self.rooms_layout.addWidget(no_rooms)
+        leaderboard = response.get("leaderboard", [])
+        self.global_table.setRowCount(len(leaderboard))
+
+        medal_map = {1: "🥇 #1", 2: "🥈 #2", 3: "🥉 #3"}
+
+        for i, entry in enumerate(leaderboard):
+            rank = entry.get("rank", i + 1)
+            rank_str = medal_map.get(rank, f"#{rank}")
+
+            self.global_table.setItem(i, 0, QTableWidgetItem(rank_str))
+            self.global_table.setItem(i, 1, QTableWidgetItem(entry.get("username", "")))
+            self.global_table.setItem(i, 2, QTableWidgetItem(entry.get("focus_time_formatted", "00:00:00")))
+            self.global_table.setItem(i, 3, QTableWidgetItem(str(entry.get("total_sessions", 0))))
+            self.global_table.setItem(i, 4, QTableWidgetItem(entry.get("best_session_formatted", "00:00:00")))
+            streak = entry.get("current_streak_days", 0)
+            streak_str = f"{streak} day{'s' if streak != 1 else ''}"
+            self.global_table.setItem(i, 5, QTableWidgetItem(streak_str))
+
+            # Highlight top 3
+            if rank <= 3:
+                colors = {1: "#FFD700", 2: "#C0C0C0", 3: "#CD7F32"}
+                color = colors.get(rank, "white")
+                for col in range(6):
+                    item = self.global_table.item(i, col)
+                    if item:
+                        item.setForeground(Qt.white)
+
+    # -----------------------------------------------------------------------
+    # Competition lookup tab
+    # -----------------------------------------------------------------------
+
+    def _build_competition_tab(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(15, 15, 15, 15)
+
+        search_row = QHBoxLayout()
+        self.comp_code_input = QLineEdit()
+        self.comp_code_input.setPlaceholderText("Enter competition code (e.g. 42)")
+        self.comp_code_input.setStyleSheet(
+            "background-color: #202225; color: white; border: 1px solid #4F545C; "
+            "border-radius: 4px; padding: 8px;"
+        )
+        search_row.addWidget(self.comp_code_input)
+
+        lookup_btn = QPushButton("Load Leaderboard")
+        lookup_btn.setStyleSheet("background-color: #7289DA; color: white; border-radius: 4px; padding: 8px 16px;")
+        lookup_btn.clicked.connect(self._load_competition_leaderboard)
+        search_row.addWidget(lookup_btn)
+        layout.addLayout(search_row)
+
+        self.comp_title_lbl = QLabel("Enter a competition code above to view its leaderboard")
+        self.comp_title_lbl.setStyleSheet("color: #B9BBBE; font-size: 13px; padding: 5px;")
+        layout.addWidget(self.comp_title_lbl)
+
+        self.comp_table = QTableWidget()
+        self.comp_table.setColumnCount(5)
+        self.comp_table.setHorizontalHeaderLabels(["Rank", "Username", "Focus Time", "Sessions", "Score"])
+        self.comp_table.setStyleSheet("""
+            QTableWidget { background-color: #202225; color: white; border: none; border-radius: 5px; gridline-color: #2F3136; }
+            QHeaderView::section { background-color: #2F3136; color: white; font-weight: bold; border: none; padding: 8px; }
+            QTableWidget::item { padding: 6px; }
+        """)
+        self.comp_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.comp_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        layout.addWidget(self.comp_table)
+        return widget
+
+    def _load_competition_leaderboard(self):
+        code_text = self.comp_code_input.text().strip()
+        if not code_text:
+            return
+        try:
+            code = int(code_text)
+        except ValueError:
+            self.comp_title_lbl.setText("Invalid code — must be a number")
             return
 
-        # 3. Build UI Cards
-        for room in rooms:
-            card = QFrame()
-            card.setStyleSheet("background-color: #202225; border-radius: 8px; padding: 15px; margin-bottom: 10px;")
-            card_layout = QVBoxLayout(card)
-            
-            # Name and Code
-            name_label = QLabel(f"{room['name']} (Code: {room['id']})")
-            name_label.setStyleSheet("color: #43B581; font-size: 16px; font-weight: bold;")
-            card_layout.addWidget(name_label)
-            
-            # Description
-            desc = room.get('desc') or "No description provided."
-            desc_label = QLabel(desc)
-            desc_label.setStyleSheet("color: #B9BBBE; font-size: 12px;")
-            desc_label.setWordWrap(True)
-            card_layout.addWidget(desc_label)
+        response = self.network_client.get_leaderboard(code)
+        if response.get("status") != "success":
+            self.comp_title_lbl.setText(f"Error: {response.get('message', 'Failed to load')}")
+            return
 
-            # ---> NEW: DATES AND STATUS <---
-            start_str = room.get('start', '')
-            end_str = room.get('end', '')
-            
-            try:
-                # Parse strings into datetime objects
-                start_dt = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
-                end_dt = datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S")
-                now = datetime.now()
-                
-                # Determine status
-                if now < start_dt:
-                    status_text = "⏳ Not Started Yet"
-                    status_color = "#FAA61A" # Yellow
-                elif start_dt <= now <= end_dt:
-                    status_text = "🟢 Active Now"
-                    status_color = "#43B581" # Green
-                else:
-                    status_text = "🔴 Ended"
-                    status_color = "#E74C3C" # Red
-                    
-                # Format to look clean: "Oct 14, 15:30"
-                fmt_start = start_dt.strftime("%b %d, %H:%M")
-                fmt_end = end_dt.strftime("%b %d, %H:%M")
-                date_display = f"{status_text}\n{fmt_start} ➔ {fmt_end}"
-            except Exception:
-                # Fallback if dates are improperly formatted
-                date_display = f"Start: {start_str} | End: {end_str}"
-                status_color = "#B9BBBE"
+        leaderboard = response.get("leaderboard", [])
+        self.comp_title_lbl.setText(f"Competition #{code} — {len(leaderboard)} participant(s)")
+        self.comp_table.setRowCount(len(leaderboard))
 
-            date_label = QLabel(date_display)
-            date_label.setStyleSheet(f"color: {status_color}; font-size: 12px; font-weight: bold; margin-top: 5px;")
-            card_layout.addWidget(date_label)
-            
-            # Button
-            view_btn = QPushButton("View Stats")
-            view_btn.setStyleSheet("background-color: #7289DA; color: white; border-radius: 4px; padding: 5px; margin-top: 10px;")
-            view_btn.clicked.connect(lambda checked, r_id=room['id'], r_name=room['name']: self.load_leaderboard(r_id, r_name))
-            card_layout.addWidget(view_btn)
-            
-            self.rooms_layout.addWidget(card)
+        medal_map = {1: "🥇 #1", 2: "🥈 #2", 3: "🥉 #3"}
+        for i, entry in enumerate(leaderboard):
+            rank = entry.get("rank", i + 1)
+            self.comp_table.setItem(i, 0, QTableWidgetItem(medal_map.get(rank, f"#{rank}")))
+            self.comp_table.setItem(i, 1, QTableWidgetItem(entry.get("username", "")))
+            self.comp_table.setItem(i, 2, QTableWidgetItem(entry.get("focus_time_formatted", "00:00:00")))
+            self.comp_table.setItem(i, 3, QTableWidgetItem(str(entry.get("sessions_count", 0))))
+            self.comp_table.setItem(i, 4, QTableWidgetItem(f"{entry.get('focus_score', 0):.1f}"))
 
-    def load_leaderboard(self, room_id: int, room_name: str):
-        self.table_title.setText(f"📊 {room_name} Leaderboard")
-        self.table.setRowCount(0) 
-        
-        response = self.network_client.get_leaderboard(room_id)
-        
-        if response.get("status") == "success":
-            leaderboard = response.get("leaderboard", [])
-            self.table.setRowCount(len(leaderboard))
-            
-            for row_idx, user in enumerate(leaderboard):
-                rank = user.get("rank", row_idx + 1)
-                username = user.get("username", "Unknown")
-                
-                focus_seconds = user.get("focus_time", 0)
-                time_str = f"{focus_seconds // 3600:02}:{(focus_seconds % 3600) // 60:02}:{focus_seconds % 60:02}"
-                
-                self.table.setItem(row_idx, 0, QTableWidgetItem(f"#{rank}"))
-                self.table.setItem(row_idx, 1, QTableWidgetItem(username))
-                self.table.setItem(row_idx, 2, QTableWidgetItem(time_str))
+    # -----------------------------------------------------------------------
+    # Qt lifecycle
+    # -----------------------------------------------------------------------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._load_global_leaderboard()

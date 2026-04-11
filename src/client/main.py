@@ -52,7 +52,7 @@ class LockInApp(QMainWindow):
         self.comps_tab = CompetitionsTab(self.network_client)       # <-- NEW
         self.leaderboard_tab = LeaderboardTab(self.network_client)  # <-- NEW
         self.stats_tab = StatsTab(self.network_client)
-        self.settings_tab = SettingsTab()
+        self.settings_tab = SettingsTab(self.network_client)
         
         self.main_window.add_tab(self.home_tab)          # Index 0
         self.main_window.add_tab(self.focus_tab)         # Index 1
@@ -119,7 +119,7 @@ class LockInApp(QMainWindow):
             QMessageBox.critical(self, "Registration Failed", response.get("message", "Connection error. Is the server running?"))
 
     def handle_logout(self):
-        self.network_client.logged_in_user_id = None
+        self.network_client.logout()
         self.main_stack.setCurrentWidget(self.login_view)
 
     def scan_and_populate_apps(self):
@@ -161,20 +161,43 @@ class LockInApp(QMainWindow):
             
             # ---> 3. UPLOAD TO SERVER <---
             upload_result = self.network_client.upload_session(stats)
-            
+
             offline_msg = ""
+            achievement_msg = ""
             if upload_result.get("status") == "offline":
-                offline_msg = "\n\n Network error. Session saved safely to your device and will sync later!"
-            
+                offline_msg = "\n\nNetwork error. Session saved safely to your device and will sync later!"
+            elif upload_result.get("status") == "success":
+                new_achievements = upload_result.get("new_achievements", [])
+                if new_achievements:
+                    ach_names = {
+                        "first_session": "First Step", "sessions_10": "Dedicated",
+                        "sessions_50": "Focused", "sessions_100": "Elite Focuser",
+                        "focus_1h": "One Hour Club", "focus_10h": "Ten Hour Warrior",
+                        "focus_100h": "Century Focuser", "streak_3": "On a Roll",
+                        "streak_7": "Week Warrior", "streak_30": "Monthly Master",
+                    }
+                    names = [ach_names.get(a, a) for a in new_achievements]
+                    achievement_msg = f"\n\n★ Achievement Unlocked: {', '.join(names)}!"
+
+            session_score = upload_result.get("session_score", stats.get("final_score", 0))
+
+            # Format times nicely
+            total_sec = stats.get('total_time_seconds', 0)
+            focus_sec = stats.get('focus_time_seconds', 0)
+            th, tr = divmod(total_sec, 3600)
+            tm, ts = divmod(tr, 60)
+            fh, fr = divmod(focus_sec, 3600)
+            fm, fs = divmod(fr, 60)
+
             # 4. Show the results
-            QMessageBox.information(self, "Session Complete!", 
+            QMessageBox.information(self, "Session Complete!",
                 f"Great job!\n\n"
                 f"Task: {stats['description']}\n"
-                f"⏱️ Total Time: {stats['total_time_seconds']}s\n"
-                f"🎯 Focus Time: {stats['focus_time_seconds']}s\n"
-                f"❌ Distractions: {stats['distraction_count']}\n"
-                f"🏆 Final Score: {stats['final_score']}"
-                f"{offline_msg}")
+                f"Total Time: {th:02d}:{tm:02d}:{ts:02d}\n"
+                f"Focus Time: {fh:02d}:{fm:02d}:{fs:02d}\n"
+                f"Distractions: {stats['distraction_count']}\n"
+                f"Focus Score: {session_score}"
+                f"{offline_msg}{achievement_msg}")
 
     def update_timer_ui(self):
         """Runs every 1 second while a session is active to update the clock and stats."""
