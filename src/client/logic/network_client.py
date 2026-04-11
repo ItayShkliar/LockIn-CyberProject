@@ -249,6 +249,25 @@ class NetworkClient:
             json.dump(offline_data, f, indent=4)
         print("[Network] Session cached locally due to connection error.")
 
+    def get_daily_stats(self):
+        """Fetches today's focus stats for the logged-in user."""
+        if not self.logged_in_user_id:
+            return {"status": "error", "message": "Not logged in"}
+        return self._send_request({
+            "action": "get_daily_stats",
+            "user_id": self.logged_in_user_id,
+        })
+
+    def get_active_competition_leaderboard(self, limit=5):
+        """Fetches the leaderboard for the user's primary active competition."""
+        if not self.logged_in_user_id:
+            return {"status": "error", "message": "Not logged in"}
+        return self._send_request({
+            "action": "get_active_competition_leaderboard",
+            "user_id": self.logged_in_user_id,
+            "limit": limit,
+        })
+
     def sync_offline_sessions(self):
         """Attempts to upload any locally cached sessions to the server."""
         if not os.path.exists(self.cache_file) or not self.logged_in_user_id:

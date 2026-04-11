@@ -47,7 +47,7 @@ class LockInApp(QMainWindow):
         self._connect_signals()
 
     def _setup_tabs(self):
-        self.home_tab = HomeTab()
+        self.home_tab = HomeTab(self.network_client)
         self.focus_tab = FocusTab()
         self.comps_tab = CompetitionsTab(self.network_client)       # <-- NEW
         self.leaderboard_tab = LeaderboardTab(self.network_client)  # <-- NEW

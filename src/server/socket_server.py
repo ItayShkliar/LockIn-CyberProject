@@ -455,6 +455,80 @@ def handle_client(conn: socket.socket, addr):
                 c['end_date'] = str(c['end_date'])
             response = {"status": "success", "competitions": competitions}
 
+        # ----------------------------------------------------------------
+        # HOME TAB ROUTES
+        # ----------------------------------------------------------------
+
+        elif action == "get_daily_stats":
+            user_id = request.get("user_id")
+            if not user_id:
+                response = {"status": "error", "message": "Missing user_id"}
+            else:
+                from datetime import date
+                today = date.today().isoformat()
+                cursor.execute("""
+                    SELECT SUM(focus_time_seconds), COUNT(*)
+                    FROM Sessions
+                    WHERE user_id = ? AND DATE(start_time) = ?
+                """, (user_id, today))
+                row = cursor.fetchone()
+                daily_focus = row[0] or 0
+                daily_sessions = row[1] or 0
+                daily_avg_ratio = 0.0
+                if daily_sessions > 0 and daily_focus > 0:
+                    daily_avg_ratio = min((daily_focus / (daily_sessions * 3600.0)) * 100.0, 100.0)
+                response = {
+                    "status": "success",
+                    "daily_focus_seconds": daily_focus,
+                    "daily_focus_formatted": StatsEngine.format_duration(daily_focus),
+                    "daily_sessions": daily_sessions,
+                    "daily_avg_focus_ratio": round(daily_avg_ratio, 1),
+                }
+
+        elif action == "get_active_competition_leaderboard":
+            user_id = request.get("user_id")
+            limit = request.get("limit", 5)
+            if not user_id:
+                response = {"status": "error", "message": "Missing user_id"}
+            else:
+                cursor.execute("""
+                    SELECT DISTINCT c.competition_id, c.name
+                    FROM Competitions c
+                    JOIN CompetitionParticipants cp ON c.competition_id = cp.competition_id
+                    WHERE cp.user_id = ? AND c.status = 'active'
+                    ORDER BY c.competition_id DESC
+                    LIMIT 1
+                """, (user_id,))
+                active_comp = cursor.fetchone()
+                if not active_comp:
+                    response = {"status": "success", "competition": None, "leaderboard": []}
+                else:
+                    comp_id, comp_name = active_comp
+                    cursor.execute("""
+                        SELECT cp.rank, u.username, cp.total_focus_time_seconds,
+                               cp.sessions_count, cp.focus_score
+                        FROM CompetitionParticipants cp
+                        JOIN Users u ON cp.user_id = u.user_id
+                        WHERE cp.competition_id = ?
+                        ORDER BY cp.rank ASC
+                        LIMIT ?
+                    """, (comp_id, limit))
+                    leaderboard = []
+                    for row in cursor.fetchall():
+                        leaderboard.append({
+                            "rank": row[0],
+                            "username": row[1],
+                            "focus_time_seconds": row[2],
+                            "focus_time_formatted": StatsEngine.format_duration(row[2] or 0),
+                            "sessions_count": row[3],
+                            "focus_score": round(row[4], 1) if row[4] else 0.0,
+                        })
+                    response = {
+                        "status": "success",
+                        "competition": {"id": comp_id, "name": comp_name},
+                        "leaderboard": leaderboard,
+                    }
+
         else:
             response = {"status": "error", "message": f"Unknown action: '{action}'"}
 
