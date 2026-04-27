@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QPushButton, QTableWidgetItem, QHeaderView
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QPushButton, QTableWidgetItem, QHeaderView, QComboBox, QMessageBox
 from PyQt5.QtCore import Qt
 from datetime import datetime
 
@@ -6,73 +6,157 @@ class StatsTab(QWidget):
     def __init__(self, network_client):
         super().__init__()
         self.network_client = network_client
-        
-        layout = QVBoxLayout()
+        self.all_sessions = []
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
         
-        # --- HEADER (Title + Refresh Button) ---
-        header_layout = QHBoxLayout()
-        title = QLabel("All-Time Statistics")
-        title.setStyleSheet("font-size: 28px; font-weight: bold; color: white;")
+        header = QHBoxLayout()
+        title = QLabel("Session History")
+        title.setObjectName("Title")
+        header.addWidget(title)
         
-        self.refresh_btn = QPushButton("🔄 Refresh")
+        header.addStretch()
+        
+        # Year Filter
+        self.year_filter = QComboBox()
+        self.year_filter.addItems(["All Time", "2024", "2025", "2026", "2027"])
+        self.year_filter.setStyleSheet("background-color: #1e293b; color: white; border: 1px solid #334155; padding: 5px; border-radius: 4px;")
+        self.year_filter.currentTextChanged.connect(self._render_sessions)
+        header.addWidget(self.year_filter)
+        
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.setProperty("theme", "primary")
         self.refresh_btn.setFixedSize(120, 40)
-        self.refresh_btn.setStyleSheet("background-color: #7289DA; color: white; font-weight: bold; border-radius: 5px;")
         self.refresh_btn.clicked.connect(self.load_sessions)
+        header.addWidget(self.refresh_btn)
         
-        header_layout.addWidget(title)
-        header_layout.addStretch() # Pushes the button to the right
-        header_layout.addWidget(self.refresh_btn)
+        layout.addLayout(header)
         
-        layout.addLayout(header_layout)
-        layout.addSpacing(20)
-        
-        # --- DYNAMIC TABLE ---
         self.history_table = QTableWidget()
         self.history_table.setColumnCount(6) 
-        self.history_table.setHorizontalHeaderLabels(["Start Time", "End Time", "Duration (s)", "Focus (s)", "Distractions", "Description"])
-        
-        # Modern Dark Theme Styling
-        self.history_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #202225; color: white; border: none; border-radius: 5px;
-                gridline-color: #2F3136;
-            }
-            QHeaderView::section {
-                background-color: #2F3136; color: white; font-weight: bold; border: none; padding: 8px;
-            }
-            QTableWidget::item { padding: 5px; }
-        """)
-        
-        # Make columns stretch to fit the window
-        self.history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        # Prevent manual editing of the cells
+        self.history_table.setHorizontalHeaderLabels(["Start Time", "End Time", "Duration", "Focus Time", "Dists", "Task"])
+        self.history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.history_table.horizontalHeader().setStretchLastSection(True)
         self.history_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.history_table.verticalHeader().setDefaultSectionSize(50)
+        
+        # Connect click event for detailed popup
+        self.history_table.cellDoubleClicked.connect(self._show_session_details)
+        self.history_table.cellClicked.connect(self._show_session_details)
         
         layout.addWidget(self.history_table)
-        self.setLayout(layout)
 
     def load_sessions(self):
-        """Fetches data from the API and populates the table."""
         if not self.network_client or not self.network_client.logged_in_user_id:
             return
             
         self.refresh_btn.setText("Loading...")
-        
         response = self.network_client.get_sessions(self.network_client.logged_in_user_id)
         
         if response.get("status") == "success":
-            sessions = response.get("sessions", [])
-            self.history_table.setRowCount(len(sessions))
+            self.all_sessions = response.get("sessions", [])
+            self._render_sessions()
             
-            for row_idx, session in enumerate(sessions):
-                total_time = datetime.fromisoformat(session.get("end_time", "")) - datetime.fromisoformat(session.get("start_time", ""))
-                self.history_table.setItem(row_idx, 0, QTableWidgetItem(str(session.get("start_time", ""))))
-                self.history_table.setItem(row_idx, 1, QTableWidgetItem(str(session.get("end_time", ""))))
-                self.history_table.setItem(row_idx, 2, QTableWidgetItem(str(total_time)))
-                focus_seconds = session.get("focus_time_seconds", 0)
-                self.history_table.setItem(row_idx, 3, QTableWidgetItem(str(f"{focus_seconds // 3600:02}:{(focus_seconds % 3600) // 60:02}:{focus_seconds % 60:02}")))
-                self.history_table.setItem(row_idx, 4, QTableWidgetItem(str(session.get("distraction_count", 0))))
-                self.history_table.setItem(row_idx, 5, QTableWidgetItem(str(session.get("description", ""))))
+        self.refresh_btn.setText("Refresh")
+
+    def _render_sessions(self):
+        year_filter = self.year_filter.currentText()
+        filtered_sessions = []
+        
+        # Filter sessions
+        for session in self.all_sessions:
+            if year_filter == "All Time":
+                filtered_sessions.append(session)
+            else:
+                try:
+                    start_dt = datetime.fromisoformat(session.get("start_time", ""))
+                    if str(start_dt.year) == year_filter:
+                        filtered_sessions.append(session)
+                except Exception:
+                    pass
+
+        self.history_table.setRowCount(len(filtered_sessions))
+        # Store a mapping of row to session so we can retrieve full stats on click
+        self._row_to_session = {}
+
+        for row, session in enumerate(filtered_sessions):
+            self._row_to_session[row] = session
+            try:
+                start_dt = datetime.fromisoformat(session.get("start_time", ""))
+                end_dt = datetime.fromisoformat(session.get("end_time", ""))
                 
-        self.refresh_btn.setText("🔄 Refresh")
+                # Showing full date and time as requested
+                st_str = start_dt.strftime("%m/%d/%Y %H:%M:%S")
+                et_str = end_dt.strftime("%m/%d/%Y %H:%M:%S")
+                
+                total_sec = int((end_dt - start_dt).total_seconds())
+                th, tr = divmod(total_sec, 3600)
+                tm, ts = divmod(tr, 60)
+                dur_str = f"{th:02d}:{tm:02d}:{ts:02d}"
+                
+                focus_sec = session.get("focus_time_seconds", 0)
+                fh, fr = divmod(focus_sec, 3600)
+                fm, fs = divmod(fr, 60)
+                foc_str = f"{fh:02d}:{fm:02d}:{fs:02d}"
+
+                self.history_table.setItem(row, 0, QTableWidgetItem(st_str))
+                self.history_table.setItem(row, 1, QTableWidgetItem(et_str))
+                self.history_table.setItem(row, 2, QTableWidgetItem(dur_str))
+                self.history_table.setItem(row, 3, QTableWidgetItem(foc_str))
+                self.history_table.setItem(row, 4, QTableWidgetItem(str(session.get("distraction_count", 0))))
+                self.history_table.setItem(row, 5, QTableWidgetItem(session.get("description", "")))
+            except Exception as e:
+                print(f"Error formatting session: {e}")
+        
+        # Ensure full strings are visible
+        self.history_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.history_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.history_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.history_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.history_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.history_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+
+    def _show_session_details(self, row, col):
+        session = getattr(self, "_row_to_session", {}).get(row)
+        if not session:
+            return
+            
+        try:
+            start_dt = datetime.fromisoformat(session.get("start_time", ""))
+            end_dt = datetime.fromisoformat(session.get("end_time", ""))
+            
+            st_str = start_dt.strftime("%B %d, %Y - %H:%M:%S")
+            et_str = end_dt.strftime("%B %d, %Y - %H:%M:%S")
+            
+            total_sec = int((end_dt - start_dt).total_seconds())
+            focus_sec = session.get("focus_time_seconds", 0)
+            dists = session.get("distraction_count", 0)
+            
+            # Use the shared stats engine to calculate the score accurately
+            import sys
+            import os
+            src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+            if src_dir not in sys.path:
+                sys.path.append(src_dir)
+            from server.logic.stats_engine import StatsEngine
+            
+            score = StatsEngine.calculate_focus_score(focus_sec, total_sec, dists)
+
+            task = session.get("description", "Focus Session")
+            
+            msg = (
+                f"Task: {task}\n\n"
+                f"Start: {st_str}\n"
+                f"End:   {et_str}\n\n"
+                f"Total Duration: {total_sec} seconds\n"
+                f"Total Focus Time: {focus_sec} seconds\n"
+                f"Distractions: {dists}\n\n"
+                f"Calculated Score: {score}/100"
+            )
+            QMessageBox.information(self, "Session Details", msg)
+        except Exception:
+            pass

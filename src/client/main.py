@@ -15,6 +15,7 @@ from ui.tabs.competitions_tab import CompetitionsTab # <-- NEW
 from ui.tabs.leaderboard_tab import LeaderboardTab   # <-- NEW
 from ui.tabs.stats_tab import StatsTab
 from ui.tabs.settings_tab import SettingsTab
+from ui.style import GLOBAL_STYLESHEET
 
 # Import Logic Managers
 from logic.network_client import NetworkClient
@@ -25,7 +26,7 @@ class LockInApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Lock In - Productivity")
         self.resize(1000, 700) 
-        self.setStyleSheet("background-color: #36393F;") 
+        # Application context stylesheet is set in __main__ or globally via QApplication
         
         self.network_client = NetworkClient()
         self.session_manager = SessionManager()
@@ -135,87 +136,55 @@ class LockInApp(QMainWindow):
 
     def toggle_session(self):
         if not self.session_manager.is_active:
-            # 1. Start the Session
+            # 1. Gather Input
             selected_apps = self.focus_tab.get_selected_apps()
             if not selected_apps:
-                QMessageBox.warning(self, "Hold Up", "Please scan and select at least one app to focus on!")
+                QMessageBox.warning(self, "Hold Up", "Please select at least one app to focus on!")
                 return
-                
-            desc = self.focus_tab.get_description()
-            self.session_manager.start_session(selected_apps, desc)
             
-            # 2. Update UI
+            # 2. Logic: Start
+            self.session_manager.start_session(selected_apps, self.focus_tab.get_description())
+            
+            # 3. UI: Activate
             self.focus_tab.set_active_mode(selected_apps)
-            self.focus_tab.start_btn.setText("STOP SESSION")
-            self.focus_tab.start_btn.setStyleSheet("background-color: #E74C3C; color: white; font-size: 24px; font-weight: bold; border-radius: 10px;")
             self.session_timer.start(1000) 
         else:
-            # 1. Stop the Session
+            # 1. Logic: Stop
             self.session_timer.stop()
             stats = self.session_manager.stop_session()
             
-            # 2. Reset UI
+            # 2. UI: Reset
             self.focus_tab.set_setup_mode()
-            self.focus_tab.start_btn.setText("LOCK IN")
-            self.focus_tab.start_btn.setStyleSheet("background-color: #43B581; color: white; font-size: 24px; font-weight: bold; border-radius: 10px;")
             
-            # ---> 3. UPLOAD TO SERVER <---
+            # 3. Network: Upload
             upload_result = self.network_client.upload_session(stats)
 
-            offline_msg = ""
-            achievement_msg = ""
+            # 4. Feedback Assembly (Delegated Logic)
+            summary = self.session_manager.get_session_summary(stats)
+            extra_msg = ""
+            
             if upload_result.get("status") == "offline":
-                offline_msg = "\n\nNetwork error. Session saved safely to your device and will sync later!"
+                extra_msg = "\n\n⚠️ Currently offline. Session cached locally."
             elif upload_result.get("status") == "success":
-                new_achievements = upload_result.get("new_achievements", [])
-                if new_achievements:
-                    ach_names = {
-                        "first_session": "First Step", "sessions_10": "Dedicated",
-                        "sessions_50": "Focused", "sessions_100": "Elite Focuser",
-                        "focus_1h": "One Hour Club", "focus_10h": "Ten Hour Warrior",
-                        "focus_100h": "Century Focuser", "streak_3": "On a Roll",
-                        "streak_7": "Week Warrior", "streak_30": "Monthly Master",
-                    }
-                    names = [ach_names.get(a, a) for a in new_achievements]
-                    achievement_msg = f"\n\n★ Achievement Unlocked: {', '.join(names)}!"
+                new_ach = upload_result.get("new_achievements", [])
+                if new_ach:
+                    names = [self.network_client.get_achievement_name(a) for a in new_ach]
+                    extra_msg = f"\n\n★ Achievement Unlocked: {', '.join(names)}!"
 
-            session_score = upload_result.get("session_score", stats.get("final_score", 0))
-
-            # Format times nicely
-            total_sec = stats.get('total_time_seconds', 0)
-            focus_sec = stats.get('focus_time_seconds', 0)
-            th, tr = divmod(total_sec, 3600)
-            tm, ts = divmod(tr, 60)
-            fh, fr = divmod(focus_sec, 3600)
-            fm, fs = divmod(fr, 60)
-
-            # 4. Show the results
-            QMessageBox.information(self, "Session Complete!",
-                f"Great job!\n\n"
-                f"Task: {stats['description']}\n"
-                f"Total Time: {th:02d}:{tm:02d}:{ts:02d}\n"
-                f"Focus Time: {fh:02d}:{fm:02d}:{fs:02d}\n"
-                f"Distractions: {stats['distraction_count']}\n"
-                f"Focus Score: {session_score}"
-                f"{offline_msg}{achievement_msg}")
+            QMessageBox.information(self, "Session Complete!", f"{summary}{extra_msg}")
 
     def update_timer_ui(self):
-        """Runs every 1 second while a session is active to update the clock and stats."""
-        total_sec, focus_sec, dists, score = self.session_manager.get_current_stats()
+        """Refreshes the Focus Tab display with current session metrics."""
+        total, focus, dists, score = self.session_manager.get_current_stats()
         
-        m, s = divmod(total_sec, 60)
-        h, m = divmod(m, 60)
-        time_string = f"{h:02d}:{m:02d}:{s:02d}"
-        
-        self.focus_tab.timer_label.setText(time_string)
-        self.focus_tab.distractions_label.setText(f"👀 Distractions: {dists}")
-        
-        score_color = "#FAA61A" if score >= 70 else "#E74C3C" 
-        self.focus_tab.score_label.setStyleSheet(f"font-size: 20px; color: {score_color}; font-weight: bold;")
-        self.focus_tab.score_label.setText(f"🏆 Focus Score: {score}")
+        # Format and push data to the View
+        time_str = self.session_manager.format_seconds(total)
+        self.focus_tab.update_stats(time_str, dists, score)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    # The application style is centralized in style.py
+    app.setStyleSheet(GLOBAL_STYLESHEET)
     window = LockInApp()
     window.show()
     sys.exit(app.exec_())

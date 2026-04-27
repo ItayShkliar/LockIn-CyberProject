@@ -1,11 +1,5 @@
-"""
-Home Tab (v3) - Minimalistic Dashboard
-Shows greeting, daily focus/session time, and current competition rank.
-"""
-
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame, QHBoxLayout
 from PyQt5.QtCore import Qt, QTimer
-
 
 class HomeTab(QWidget):
     def __init__(self, network_client=None):
@@ -17,67 +11,73 @@ class HomeTab(QWidget):
         self.refresh_timer.start(30000)
 
     def _init_ui(self):
-        """Initialize the minimalistic scrollable UI."""
-        main_layout = QVBoxLayout()
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(40, 40, 40, 40)
-        main_layout.setSpacing(20)
+        main_layout.setSpacing(30)
 
-        # Scrollable content area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background-color: #36393F; }")
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-        scroll_layout.setSpacing(30)
-
-        # Greeting
+        # Title
         self.greeting_label = QLabel("Hello, User")
-        self.greeting_label.setStyleSheet("font-size: 32px; font-weight: bold; color: white;")
-        scroll_layout.addWidget(self.greeting_label)
+        self.greeting_label.setObjectName("Title")
+        main_layout.addWidget(self.greeting_label)
 
-        # Daily Focus Time
-        self.daily_focus_label = QLabel("Today's Focus: 00:00:00")
-        self.daily_focus_label.setStyleSheet("font-size: 20px; color: #43B581;")
-        scroll_layout.addWidget(self.daily_focus_label)
+        # Dashboard Grid (using layouts inside cards)
+        stats_container = QHBoxLayout()
+        stats_container.setSpacing(20)
 
-        # Overall Session Time
-        self.session_time_label = QLabel("Sessions Today: 0")
-        self.session_time_label.setStyleSheet("font-size: 18px; color: #B9BBBE;")
-        scroll_layout.addWidget(self.session_time_label)
+        # Today's Focus Card
+        focus_card = QFrame()
+        focus_card.setObjectName("Card")
+        focus_layout = QVBoxLayout(focus_card)
+        focus_layout.addWidget(QLabel("TODAY'S FOCUS"))
+        self.daily_focus_label = QLabel("00:00:00")
+        self.daily_focus_label.setStyleSheet("font-size: 28px; font-weight: bold; color: #3b82f6;")
+        focus_layout.addWidget(self.daily_focus_label)
+        stats_container.addWidget(focus_card)
 
-        # Competition Rank (if in any)
+        # Sessions Card
+        session_card = QFrame()
+        session_card.setObjectName("Card")
+        session_layout = QVBoxLayout(session_card)
+        session_layout.addWidget(QLabel("SESSIONS TODAY"))
+        self.session_time_label = QLabel("0")
+        self.session_time_label.setStyleSheet("font-size: 28px; font-weight: bold; color: #10b981;")
+        session_layout.addWidget(self.session_time_label)
+        stats_container.addWidget(session_card)
+
+        main_layout.addLayout(stats_container)
+
+        # Competition Card
+        comp_card = QFrame()
+        comp_card.setObjectName("Card")
+        comp_layout = QVBoxLayout(comp_card)
+        label = QLabel("ACTIVE COMPETITION")
+        label.setObjectName("Subtitle")
+        comp_layout.addWidget(label)
+        
         self.comp_rank_label = QLabel("No active competitions")
-        self.comp_rank_label.setStyleSheet("font-size: 16px; color: #FAA61A; margin-top: 20px;")
-        scroll_layout.addWidget(self.comp_rank_label)
+        self.comp_rank_label.setStyleSheet("font-size: 20px; font-weight: 500; color: #f8fafc;")
+        comp_layout.addWidget(self.comp_rank_label)
+        main_layout.addWidget(comp_card)
 
-        scroll_layout.addStretch()
-        scroll.setWidget(scroll_widget)
-        main_layout.addWidget(scroll)
-
-        self.setLayout(main_layout)
+        main_layout.addStretch()
 
     def refresh_data(self):
-        """Refresh daily stats and competition rank."""
         if not self.network_client or not self.network_client.logged_in_user_id:
             return
 
-        # Update greeting
         username = self.network_client.logged_in_username or "User"
         self.greeting_label.setText(f"Hello, {username}")
 
-        # Fetch daily stats
         try:
             daily_response = self.network_client.get_daily_stats()
             if daily_response.get("status") == "success":
                 focus_formatted = daily_response.get("daily_focus_formatted", "00:00:00")
                 sessions = daily_response.get("daily_sessions", 0)
-                self.daily_focus_label.setText(f"Today's Focus: {focus_formatted}")
-                self.session_time_label.setText(f"Sessions Today: {sessions}")
+                self.daily_focus_label.setText(focus_formatted)
+                self.session_time_label.setText(str(sessions))
         except Exception as e:
             print(f"[HomeTab] Error fetching daily stats: {e}")
 
-        # Fetch active competition rank
         try:
             comp_response = self.network_client.get_active_competition_leaderboard(limit=1)
             if comp_response.get("status") == "success":
@@ -86,7 +86,6 @@ class HomeTab(QWidget):
 
                 if competition and leaderboard:
                     comp_name = competition.get("name", "Unknown")
-                    # Find user's rank in the leaderboard
                     user_rank = None
                     for entry in leaderboard:
                         if entry.get("username") == username:
@@ -102,6 +101,5 @@ class HomeTab(QWidget):
             print(f"[HomeTab] Error fetching competition rank: {e}")
 
     def showEvent(self, event):
-        """Called when the tab becomes visible."""
         super().showEvent(event)
         self.refresh_data()

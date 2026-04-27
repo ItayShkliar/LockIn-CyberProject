@@ -296,3 +296,15 @@ class NetworkClient:
         else:
             with open(self.cache_file, "w") as f:
                 json.dump(remaining_data, f, indent=4)
+
+    @staticmethod
+    def get_achievement_name(ach_id: str) -> str:
+        """Translates backend achievement IDs to friendly names."""
+        mapping = {
+            "first_session": "First Step", "sessions_10": "Dedicated",
+            "sessions_50": "Focused", "sessions_100": "Elite Focuser",
+            "focus_1h": "One Hour Club", "focus_10h": "Ten Hour Warrior",
+            "focus_100h": "Century Focuser", "streak_3": "On a Roll",
+            "streak_7": "Week Warrior", "streak_30": "Monthly Master",
+        }
+        return mapping.get(ach_id, ach_id)
