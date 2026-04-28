@@ -77,6 +77,7 @@ class LockInApp(QMainWindow):
         self.main_window.logout_btn.clicked.connect(self.handle_logout)
         
         self.focus_tab.scan_btn.clicked.connect(self.scan_and_populate_apps)
+        self.focus_tab.scan_tabs_btn.clicked.connect(self.scan_browser_tabs)
         self.focus_tab.start_btn.clicked.connect(self.toggle_session)
 
     # ==========================================
@@ -132,7 +133,19 @@ class LockInApp(QMainWindow):
         except Exception as e:
             print(f"[Error] Failed to scan apps: {e}")
         finally:
-            self.focus_tab.scan_btn.setText("🔄 Scan Running Apps")
+            self.focus_tab.scan_btn.setText("🔄 Refresh Running Apps")
+
+    def scan_browser_tabs(self):
+        """Scans open browser tabs and populates the tab list in the Focus UI."""
+        self.focus_tab.scan_tabs_btn.setText("Scanning...")
+        QApplication.processEvents()
+        try:
+            tabs = self.session_manager.get_browser_tabs()
+            self.focus_tab.populate_browser_tabs(tabs)
+        except Exception as e:
+            print(f"[Error] Failed to scan browser tabs: {e}")
+        finally:
+            self.focus_tab.scan_tabs_btn.setText("🔍 Scan Open Browser Tabs")
 
     def toggle_session(self):
         if not self.session_manager.is_active:
@@ -142,11 +155,18 @@ class LockInApp(QMainWindow):
                 QMessageBox.warning(self, "Hold Up", "Please select at least one app to focus on!")
                 return
             
-            # 2. Logic: Start
-            self.session_manager.start_session(selected_apps, self.focus_tab.get_description())
+            # 2. Gather browser tab keywords (optional)
+            focus_tabs = self.focus_tab.get_focus_tab_keywords()
             
-            # 3. UI: Activate
-            self.focus_tab.set_active_mode(selected_apps)
+            # 3. Logic: Start
+            self.session_manager.start_session(
+                selected_apps,
+                self.focus_tab.get_description(),
+                focus_tabs=focus_tabs if focus_tabs else None
+            )
+            
+            # 4. UI: Activate
+            self.focus_tab.set_active_mode(selected_apps, focus_tabs=focus_tabs if focus_tabs else None)
             self.session_timer.start(1000) 
         else:
             # 1. Logic: Stop

@@ -3,9 +3,15 @@ App Scanner Module
 Scans the computer to find currently running applications.
 Uses advanced filtering and keyword matching to hide background processes, 
 updaters, and system services, showing only real user applications.
+
+Also scans browser window titles to detect open tabs/sites.
 """
 import psutil
 import os
+import ctypes
+
+# Browser process names we recognise
+BROWSER_PROCESSES = ['chrome.exe', 'msedge.exe', 'brave.exe', 'firefox.exe', 'opera.exe']
 
 class AppScanner:
     """
@@ -74,6 +80,59 @@ class AppScanner:
                 
         return sorted(list(running_apps))
 
+    @staticmethod
+    def get_browser_tabs() -> list:
+        """
+        Scans all visible windows for browser tabs by reading their window titles.
+        Browsers show the active tab title in their window title bar.
+        
+        Returns:
+            list: A list of tab title strings currently open in any browser.
+        """
+        tabs = []
+        
+        # Suffixes that browsers add to their window titles
+        browser_suffixes = [
+            ' - Google Chrome', ' - Microsoft Edge', ' - Brave',
+            ' - Mozilla Firefox', ' - Opera', ' — Mozilla Firefox',
+            ' - Chromium',
+        ]
+        
+        def _enum_callback(hwnd, _):
+            """Callback for EnumWindows: collects visible browser window titles."""
+            if not ctypes.windll.user32.IsWindowVisible(hwnd):
+                return True
+            
+            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            if length == 0:
+                return True
+            
+            buff = ctypes.create_unicode_buffer(length + 1)
+            ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+            title = buff.value
+            
+            for suffix in browser_suffixes:
+                if title.endswith(suffix):
+                    tab_title = title[: -len(suffix)]
+                    if tab_title and tab_title != 'New Tab':
+                        tabs.append(tab_title)
+                    break
+            
+            return True
+        
+        # Define the callback type and call EnumWindows
+        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+        ctypes.windll.user32.EnumWindows(WNDENUMPROC(_enum_callback), 0)
+        
+        print(f"[Scanner] Found {len(tabs)} browser tabs.")
+        return sorted(set(tabs))
+
+    @staticmethod
+    def is_browser_process(process_name: str) -> bool:
+        """Checks if a process name belongs to a known browser."""
+        return process_name.lower() in BROWSER_PROCESSES
+
+
 # ==========================================
 # Test Execution Block
 # ==========================================
@@ -82,6 +141,10 @@ if __name__ == "__main__":
     apps = scanner.get_running_processes()
     
     print(f"\n--- Found {len(apps)} Clean User Applications ---")
-    
     for app in apps:
         print(f"- {app}")
+    
+    print(f"\n--- Browser Tabs ---")
+    tabs = scanner.get_browser_tabs()
+    for tab in tabs:
+        print(f"  🌐 {tab}")

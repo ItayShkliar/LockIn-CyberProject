@@ -1,10 +1,19 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QHBoxLayout, QFrame, QLineEdit
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QListWidget,
+                             QListWidgetItem, QHBoxLayout, QFrame, QLineEdit, QScrollArea)
 from PyQt5.QtCore import Qt
+
 
 class FocusTab(QWidget):
     def __init__(self):
         super().__init__()
-        layout = QVBoxLayout(self)
+        
+        # Outer scroll area so everything is accessible on small windows
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(20)
         
@@ -12,7 +21,9 @@ class FocusTab(QWidget):
         title.setObjectName("Title")
         layout.addWidget(title)
         
-        # 1. SETUP MODE CARD
+        # =====================================================
+        # 1. SETUP MODE CARD — App Selection
+        # =====================================================
         self.setup_card = QFrame()
         self.setup_card.setObjectName("Card")
         setup_layout = QVBoxLayout(self.setup_card)
@@ -36,7 +47,61 @@ class FocusTab(QWidget):
         
         layout.addWidget(self.setup_card)
 
+        # =====================================================
+        # 1b. SETUP MODE CARD — Browser Tab Keywords
+        # =====================================================
+        self.tabs_card = QFrame()
+        self.tabs_card.setObjectName("Card")
+        tabs_layout = QVBoxLayout(self.tabs_card)
+        tabs_layout.setContentsMargins(20, 20, 20, 20)
+        tabs_layout.setSpacing(12)
+
+        tabs_title = QLabel("🌐 Browser Tab Focus (Optional)")
+        tabs_title.setObjectName("Subtitle")
+        tabs_layout.addWidget(tabs_title)
+
+        tabs_desc = QLabel(
+            "If you selected a browser above, you can specify which tabs/sites "
+            "count as focused.  Enter keywords (e.g. 'docs.google', 'stackoverflow').\n"
+            "Leave empty to count ALL browser usage as focused."
+        )
+        tabs_desc.setWordWrap(True)
+        tabs_desc.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        tabs_layout.addWidget(tabs_desc)
+
+        # Input row: text field + add button
+        input_row = QHBoxLayout()
+        self.tab_keyword_input = QLineEdit()
+        self.tab_keyword_input.setPlaceholderText("Enter a keyword (e.g. 'github', 'notion')...")
+        input_row.addWidget(self.tab_keyword_input)
+
+        self.add_tab_btn = QPushButton("+ Add")
+        self.add_tab_btn.setProperty("theme", "primary")
+        self.add_tab_btn.setFixedWidth(80)
+        self.add_tab_btn.clicked.connect(self._add_tab_keyword)
+        input_row.addWidget(self.add_tab_btn)
+        tabs_layout.addLayout(input_row)
+
+        # List of added keywords
+        self.tab_keywords_list = QListWidget()
+        self.tab_keywords_list.setMaximumHeight(120)
+        tabs_layout.addWidget(self.tab_keywords_list)
+
+        # Scan open browser tabs button
+        self.scan_tabs_btn = QPushButton("🔍 Scan Open Browser Tabs")
+        self.scan_tabs_btn.setProperty("theme", "primary")
+        tabs_layout.addWidget(self.scan_tabs_btn)
+
+        # List of detected browser tabs (checkable)
+        self.browser_tabs_list = QListWidget()
+        self.browser_tabs_list.setMaximumHeight(150)
+        tabs_layout.addWidget(self.browser_tabs_list)
+
+        layout.addWidget(self.tabs_card)
+
+        # =====================================================
         # 2. ACTIVE SESSION CARD
+        # =====================================================
         self.active_card = QFrame()
         self.active_card.setObjectName("Card")
         active_layout = QVBoxLayout(self.active_card)
@@ -48,6 +113,12 @@ class FocusTab(QWidget):
         self.focus_apps_label.setAlignment(Qt.AlignCenter)
         self.focus_apps_label.setWordWrap(True)
         active_layout.addWidget(self.focus_apps_label)
+
+        self.focus_tabs_label = QLabel("")
+        self.focus_tabs_label.setAlignment(Qt.AlignCenter)
+        self.focus_tabs_label.setWordWrap(True)
+        self.focus_tabs_label.setStyleSheet("color: #38bdf8; font-size: 13px;")
+        active_layout.addWidget(self.focus_tabs_label)
         
         stats_layout = QHBoxLayout()
         self.distractions_label = QLabel("👀 Distractions: 0")
@@ -64,7 +135,9 @@ class FocusTab(QWidget):
         self.active_card.hide()
         layout.addWidget(self.active_card)
 
+        # =====================================================
         # 3. GLOBAL TIMER & BUTTON
+        # =====================================================
         layout.addStretch()
         
         timer_container = QFrame()
@@ -82,7 +155,61 @@ class FocusTab(QWidget):
         self.start_btn.setProperty("theme", "success")
         self.start_btn.setStyleSheet("font-size: 24px;")
         layout.addWidget(self.start_btn)
-        
+
+        # Wire up the scroll area
+        scroll.setWidget(inner)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+
+    # ==============================================================
+    # Tab keyword helpers
+    # ==============================================================
+
+    def _add_tab_keyword(self):
+        """Adds a keyword from the input field to the keywords list."""
+        text = self.tab_keyword_input.text().strip()
+        if text:
+            item = QListWidgetItem(text)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked)
+            self.tab_keywords_list.addItem(item)
+            self.tab_keyword_input.clear()
+
+    def populate_browser_tabs(self, tabs: list):
+        """Populates the browser tabs list with checkable items."""
+        self.browser_tabs_list.clear()
+        for tab in tabs:
+            item = QListWidgetItem(f"🌐 {tab}")
+            item.setData(Qt.UserRole, tab)   # store the raw title
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.browser_tabs_list.addItem(item)
+
+    def get_focus_tab_keywords(self) -> list:
+        """Returns all active focus tab keywords (typed + checked browser tabs)."""
+        keywords = []
+
+        # From manually typed keywords
+        for i in range(self.tab_keywords_list.count()):
+            item = self.tab_keywords_list.item(i)
+            if item.checkState() == Qt.Checked:
+                keywords.append(item.text())
+
+        # From checked scanned browser tabs
+        for i in range(self.browser_tabs_list.count()):
+            item = self.browser_tabs_list.item(i)
+            if item.checkState() == Qt.Checked:
+                raw = item.data(Qt.UserRole)
+                if raw:
+                    keywords.append(raw)
+
+        return keywords
+
+    # ==============================================================
+    # App list helpers (unchanged)
+    # ==============================================================
+
     def populate_apps(self, apps_list):
         self.app_list.clear()
         for app in apps_list:
@@ -99,10 +226,22 @@ class FocusTab(QWidget):
                 selected.append(item.text())
         return selected
 
-    def set_active_mode(self, selected_apps: list):
+    # ==============================================================
+    # Mode switching
+    # ==============================================================
+
+    def set_active_mode(self, selected_apps: list, focus_tabs: list = None):
         self.setup_card.hide()
+        self.tabs_card.hide()
         apps_text = ", ".join(selected_apps)
         self.focus_apps_label.setText(f"🎯 Tracking:\n{apps_text}")
+
+        if focus_tabs:
+            self.focus_tabs_label.setText(f"🌐 Focus tabs: {', '.join(focus_tabs)}")
+            self.focus_tabs_label.show()
+        else:
+            self.focus_tabs_label.hide()
+
         self.distractions_label.setText("👀 Distractions: 0")
         self.score_label.setText("🏆 Focus Score: 100")
         self.active_card.show()
@@ -127,7 +266,9 @@ class FocusTab(QWidget):
     def set_setup_mode(self):
         self.active_card.hide()
         self.setup_card.show()
+        self.tabs_card.show()
         self.timer_label.setText("00:00:00")
+        self.focus_tabs_label.hide()
         self.start_btn.setText("LOCK IN")
         self.start_btn.setProperty("theme", "success")
         self.start_btn.style().unpolish(self.start_btn)

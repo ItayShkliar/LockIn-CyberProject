@@ -1,11 +1,12 @@
 """
 Session Manager Module
 Manages session lifecycle and calculates business metrics like Focus Score.
-Delegates OS tracking to AppMonitor.
+Delegates OS tracking to AppMonitor and app discovery to AppScanner.
 """
 from logic.app_monitor import AppMonitor
 from logic.app_scanner import AppScanner 
 from datetime import datetime
+
 
 class SessionManager:
     def __init__(self):
@@ -16,12 +17,19 @@ class SessionManager:
         self.start_time = None
         self.description = ""
 
-    def start_session(self, focus_apps: list, description: str = "Focus Session"): # <-- Accept description
+    def start_session(self, focus_apps: list, description: str = "Focus Session",
+                      focus_tabs: list = None):
+        """Starts a new focus session.
+        
+        Args:
+            focus_apps:  Process names to track.
+            description: Human-readable session label.
+            focus_tabs:  Optional browser tab keywords for granular tracking.
+        """
         self.is_active = True
         self.description = description
-        # Capture exactly when they clicked Start (Format: YYYY-MM-DD HH:MM:SS)
         self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
-        self._monitor.start_monitoring(focus_apps)
+        self._monitor.start_monitoring(focus_apps, focus_tabs=focus_tabs)
         print(f"[Session] Started: {self.description}")
 
     def stop_session(self) -> dict:
@@ -29,7 +37,6 @@ class SessionManager:
         total, focus, dists = self._monitor.stop_monitoring()
         _, _, _, final_score = self.get_current_stats()
         
-        # Capture exactly when they clicked Stop
         end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
         return {
@@ -57,10 +64,13 @@ class SessionManager:
             
         return total_sec, focus_sec, distractions, score
     
-    
     def get_available_apps(self) -> list:
-        # Use the actual scanner now!
+        """Delegates to AppScanner for process discovery."""
         return self._scanner.get_running_processes()
+
+    def get_browser_tabs(self) -> list:
+        """Delegates to AppScanner for browser tab discovery."""
+        return self._scanner.get_browser_tabs()
 
     @staticmethod
     def format_seconds(seconds: int) -> str:
