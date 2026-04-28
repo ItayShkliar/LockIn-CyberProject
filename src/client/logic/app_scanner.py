@@ -11,7 +11,7 @@ import os
 import ctypes
 
 # Browser process names we recognise
-BROWSER_PROCESSES = ['chrome.exe', 'msedge.exe', 'brave.exe', 'firefox.exe', 'opera.exe']
+BROWSER_PROCESSES = {'chrome.exe', 'msedge.exe', 'brave.exe', 'firefox.exe', 'opera.exe'}
 
 class AppScanner:
     """

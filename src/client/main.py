@@ -195,7 +195,7 @@ class LockInApp(QMainWindow):
 
     def update_timer_ui(self):
         """Refreshes the Focus Tab display with current session metrics."""
-        total, focus, dists, score = self.session_manager.get_current_stats()
+        total, focus, dists, app_times, score = self.session_manager.get_current_stats()
         
         # Format and push data to the View
         time_str = self.session_manager.format_seconds(total)

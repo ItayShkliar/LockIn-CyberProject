@@ -61,8 +61,11 @@ class FocusTab(QWidget):
         tabs_layout.addWidget(tabs_title)
 
         tabs_desc = QLabel(
-            "If you selected a browser above, you can specify which tabs/sites "
-            "count as focused.  Enter keywords (e.g. 'docs.google', 'stackoverflow').\n"
+            "If you selected a browser above, enter keywords to specify which "
+            "sites count as focused (e.g. 'github', 'docs.google', 'stackoverflow').\n\n"
+            "💡 The monitor checks your browser's window title every second.\n"
+            "If the title contains any of your keywords → Focused ✅\n"
+            "If not → Distraction ❌\n\n"
             "Leave empty to count ALL browser usage as focused."
         )
         tabs_desc.setWordWrap(True)
@@ -72,7 +75,7 @@ class FocusTab(QWidget):
         # Input row: text field + add button
         input_row = QHBoxLayout()
         self.tab_keyword_input = QLineEdit()
-        self.tab_keyword_input.setPlaceholderText("Enter a keyword (e.g. 'github', 'notion')...")
+        self.tab_keyword_input.setPlaceholderText("Type a keyword (e.g. 'github', 'notion') and press Add...")
         input_row.addWidget(self.tab_keyword_input)
 
         self.add_tab_btn = QPushButton("+ Add")
@@ -88,7 +91,15 @@ class FocusTab(QWidget):
         tabs_layout.addWidget(self.tab_keywords_list)
 
         # Scan open browser tabs button
-        self.scan_tabs_btn = QPushButton("🔍 Scan Open Browser Tabs")
+        scan_note = QLabel(
+            "⚠️ Scan detects only the currently visible tab per browser window.\n"
+            "Switch to each tab you want to track, then scan again."
+        )
+        scan_note.setWordWrap(True)
+        scan_note.setStyleSheet("color: #f59e0b; font-size: 11px;")
+        tabs_layout.addWidget(scan_note)
+
+        self.scan_tabs_btn = QPushButton("🔍 Scan Current Browser Tabs")
         self.scan_tabs_btn.setProperty("theme", "primary")
         tabs_layout.addWidget(self.scan_tabs_btn)
 

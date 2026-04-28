@@ -16,6 +16,7 @@ class SessionManager:
         
         self.start_time = None
         self.description = ""
+        self._tracked_apps = []   # what apps were selected for this session
 
     def start_session(self, focus_apps: list, description: str = "Focus Session",
                       focus_tabs: list = None):
@@ -28,14 +29,15 @@ class SessionManager:
         """
         self.is_active = True
         self.description = description
+        self._tracked_apps = list(focus_apps)
         self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
         self._monitor.start_monitoring(focus_apps, focus_tabs=focus_tabs)
         print(f"[Session] Started: {self.description}")
 
     def stop_session(self) -> dict:
         self.is_active = False
-        total, focus, dists = self._monitor.stop_monitoring()
-        _, _, _, final_score = self.get_current_stats()
+        total, focus, dists, app_times = self._monitor.stop_monitoring()
+        _, _, _, _, final_score = self.get_current_stats()
         
         end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
@@ -47,11 +49,14 @@ class SessionManager:
             "focus_time_seconds": focus,
             "distraction_count": dists,   
             "final_score": final_score,
-            "status": "completed"   
+            "status": "completed",
+            "focus_apps": self._tracked_apps,        # what apps the user chose
+            "app_focus_times": app_times,             # per-app breakdown
         }
 
     def get_current_stats(self) -> tuple:
-        total_sec, focus_sec, distractions = self._monitor.get_current_stats()
+        """Returns (total, focus, distractions, app_focus_times, score)."""
+        total_sec, focus_sec, distractions, app_times = self._monitor.get_current_stats()
         
         import sys
         import os
@@ -62,7 +67,7 @@ class SessionManager:
         
         score = int(StatsEngine.calculate_focus_score(focus_sec, total_sec, distractions))
             
-        return total_sec, focus_sec, distractions, score
+        return total_sec, focus_sec, distractions, app_times, score
     
     def get_available_apps(self) -> list:
         """Delegates to AppScanner for process discovery."""

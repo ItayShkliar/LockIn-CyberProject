@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QDateTimeEdit, QTextEdit, QMessageBox, QFrame,
     QScrollArea, QTabWidget, QCheckBox, QSpinBox, QTableWidget,
-    QTableWidgetItem, QHeaderView
+    QTableWidgetItem, QHeaderView, QListWidget, QListWidgetItem
 )
 from PyQt5.QtCore import Qt, QDateTime
 from datetime import datetime
@@ -108,16 +108,31 @@ class CompetitionsTab(QWidget):
         layout.addWidget(desc_lbl)
 
         info_row = QHBoxLayout()
-        participants_lbl = QLabel(f"👥 {room.get('participant_count', '?')} participants")
+        participants_lbl = QLabel(f"Users: {room.get('participant_count', '?')} participants")
         participants_lbl.setObjectName("Subtitle")
         info_row.addWidget(participants_lbl)
         info_row.addStretch()
         
+        my_rank = room.get("my_rank")
+        if my_rank:
+            rank_lbl = QLabel(f"Rank: #{my_rank}")
+            rank_lbl.setStyleSheet("color: #fbbf24; font-weight: bold;")
+            info_row.addWidget(rank_lbl)
+        
         my_time = room.get("my_focus_time_formatted", "00:00:00")
-        time_lbl = QLabel(f"🕒 Your Time: {my_time}")
+        time_lbl = QLabel(f"Your Time: {my_time}")
         time_lbl.setStyleSheet("color: #f8fafc; font-weight: 500;")
         info_row.addWidget(time_lbl)
         layout.addLayout(info_row)
+
+        # Show focus apps if app-specific competition
+        focus_apps = room.get("focus_apps")
+        if focus_apps:
+            apps_text = ", ".join(focus_apps)
+            fa_lbl = QLabel(f"Focus Apps: {apps_text}")
+            fa_lbl.setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: 500;")
+            layout.addWidget(fa_lbl)
+
 
         btn_row = QHBoxLayout()
         view_btn = QPushButton("Leaderboard")
@@ -259,6 +274,30 @@ class CompetitionsTab(QWidget):
         options.addWidget(self.create_public)
         layout.addLayout(options)
 
+        # Focus Apps (optional)
+        fa_label = QLabel("Focus Apps (optional)")
+        fa_label.setStyleSheet("margin-top: 8px;")
+        layout.addWidget(fa_label)
+        fa_desc = QLabel("Specify required apps for this competition. Leave empty for a general competition.")
+        fa_desc.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        fa_desc.setWordWrap(True)
+        layout.addWidget(fa_desc)
+
+        fa_row = QHBoxLayout()
+        self.focus_app_input = QLineEdit()
+        self.focus_app_input.setPlaceholderText("e.g. 'code.exe' or 'chrome.exe'")
+        fa_row.addWidget(self.focus_app_input)
+        add_fa_btn = QPushButton("+ Add")
+        add_fa_btn.setProperty("theme", "primary")
+        add_fa_btn.setFixedWidth(80)
+        add_fa_btn.clicked.connect(self._add_focus_app)
+        fa_row.addWidget(add_fa_btn)
+        layout.addLayout(fa_row)
+
+        self.focus_apps_list = QListWidget()
+        self.focus_apps_list.setMaximumHeight(90)
+        layout.addWidget(self.focus_apps_list)
+
         create_btn = QPushButton("Create Competition")
         create_btn.setProperty("theme", "success")
         create_btn.setFixedHeight(50)
@@ -267,15 +306,34 @@ class CompetitionsTab(QWidget):
         layout.addStretch()
         return widget
 
+    def _add_focus_app(self):
+        text = self.focus_app_input.text().strip()
+        if text:
+            item = QListWidgetItem(text)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked)
+            self.focus_apps_list.addItem(item)
+            self.focus_app_input.clear()
+
     def _create_competition(self):
         name = self.create_name.text().strip()
         if not name: return
         start = self.create_start.dateTime().toString("yyyy-MM-dd HH:mm:ss")
         end = self.create_end.dateTime().toString("yyyy-MM-dd HH:mm:ss")
+
+        # Collect focus apps
+        focus_apps = []
+        for i in range(self.focus_apps_list.count()):
+            item = self.focus_apps_list.item(i)
+            if item.checkState() == Qt.Checked:
+                focus_apps.append(item.text())
+
         response = self.network_client.create_competition(
             name=name, start_date=start, end_date=end,
             description=self.create_desc.toPlainText().strip(),
-            max_participants=self.create_max.value(), is_public=self.create_public.isChecked()
+            max_participants=self.create_max.value(),
+            is_public=self.create_public.isChecked(),
+            focus_apps=focus_apps if focus_apps else None
         )
         if response.get("status") == "success":
             self._load_my_rooms()

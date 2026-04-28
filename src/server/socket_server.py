@@ -186,32 +186,52 @@ def handle_client(conn: socket.socket, addr):
                 focus_time = session_data.get('focus_time_seconds', 0)
                 distraction_count = session_data.get('distraction_count', 0)
                 total_time = session_data.get('total_time_seconds', focus_time)
+                app_focus_times = session_data.get('app_focus_times', {})
+                session_focus_apps = session_data.get('focus_apps', [])
                 session_score = StatsEngine.calculate_focus_score(
                     focus_time, total_time, distraction_count
                 )
+                # --- Update competition participants ---
+                # Find ALL active competitions the user is in
                 cursor.execute("""
-                    UPDATE CompetitionParticipants
-                    SET total_focus_time_seconds = total_focus_time_seconds + ?,
-                        sessions_count = sessions_count + 1,
-                        focus_score = (
-                            CASE WHEN sessions_count = 0 THEN ?
-                            ELSE (focus_score * sessions_count + ?) / (sessions_count + 1)
-                            END
-                        )
-                    WHERE user_id = ?
-                      AND competition_id IN (
-                          SELECT competition_id FROM Competitions
-                          WHERE status = 'active'
-                      )
-                """, (focus_time, session_score, session_score, user_id))
-                cursor.execute("""
-                    SELECT DISTINCT competition_id FROM CompetitionParticipants
-                    WHERE user_id = ?
-                      AND competition_id IN (
-                          SELECT competition_id FROM Competitions WHERE status = 'active'
-                      )
+                    SELECT c.competition_id, c.focus_apps
+                    FROM Competitions c
+                    JOIN CompetitionParticipants cp ON c.competition_id = cp.competition_id
+                    WHERE cp.user_id = ? AND c.status = 'active'
                 """, (user_id,))
-                affected_competitions = [row[0] for row in cursor.fetchall()]
+                active_comps = cursor.fetchall()
+                affected_competitions = []
+                for comp_row in active_comps:
+                    comp_id = comp_row[0]
+                    comp_focus_apps_raw = comp_row[1]
+                    # Determine how much focus time counts for this competition
+                    if comp_focus_apps_raw:
+                        # App-specific competition
+                        comp_required = json.loads(comp_focus_apps_raw)
+                        relevant_time = 0
+                        for req_app in comp_required:
+                            req_lower = req_app.lower()
+                            for tracked_app, seconds in app_focus_times.items():
+                                if req_lower.replace('.exe', '') in tracked_app.lower():
+                                    relevant_time += seconds
+                        if relevant_time <= 0:
+                            continue  # This session has no relevant time for this competition
+                    else:
+                        # General competition — all focus time counts
+                        relevant_time = focus_time
+                    # Update participant stats with relevant_time
+                    cursor.execute("""
+                        UPDATE CompetitionParticipants
+                        SET total_focus_time_seconds = total_focus_time_seconds + ?,
+                            sessions_count = sessions_count + 1,
+                            focus_score = (
+                                CASE WHEN sessions_count = 0 THEN ?
+                                ELSE (focus_score * sessions_count + ?) / (sessions_count + 1)
+                                END
+                            )
+                        WHERE user_id = ? AND competition_id = ?
+                    """, (relevant_time, session_score, session_score, user_id, comp_id))
+                    affected_competitions.append(comp_id)
                 for comp_id in affected_competitions:
                     recalculate_competition_ranks(comp_id, cursor)
                 db_conn.commit()
@@ -275,28 +295,31 @@ def handle_client(conn: socket.socket, addr):
             description = request.get("description", "")
             max_participants = request.get("max_participants", 0)
             is_public = 1 if request.get("is_public", True) else 0
+            focus_apps_list = request.get("focus_apps", [])
+            focus_apps_json = json.dumps(focus_apps_list) if focus_apps_list else None
             if not name or not start_date or not end_date:
                 response = {"status": "error", "message": "Missing required competition fields"}
             else:
                 cursor.execute("""
                     INSERT INTO Competitions
                         (name, creator_id, start_date, end_date, description,
-                         max_participants, is_public)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                         max_participants, is_public, focus_apps)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (name, user_id, start_date, end_date, description,
-                      max_participants, is_public))
+                      max_participants, is_public, focus_apps_json))
                 comp_id = cursor.lastrowid
                 cursor.execute("""
                     INSERT INTO CompetitionParticipants (competition_id, user_id)
                     VALUES (?, ?)
                 """, (comp_id, user_id))
                 db_conn.commit()
+                fa_msg = f" Focus: {focus_apps_list}" if focus_apps_list else " (General)"
                 response = {
                     "status": "success",
                     "room_code": comp_id,
                     "message": f"Competition '{name}' created! Share code: {comp_id}",
                 }
-                print(f"[Server] Competition created: '{name}' (ID: {comp_id}) by user {user_id}")
+                print(f"[Server] Competition created: '{name}' (ID: {comp_id}) by user {user_id}{fa_msg}")
 
         elif action == "join_competition":
             user_id = request.get("user_id")
@@ -409,7 +432,7 @@ def handle_client(conn: socket.socket, addr):
                 SELECT c.competition_id, c.name, c.description, c.start_date, c.end_date,
                        c.status, c.is_public,
                        COUNT(cp2.user_id) AS participant_count,
-                       cp.rank, cp.total_focus_time_seconds
+                       cp.rank, cp.total_focus_time_seconds, c.focus_apps
                 FROM Competitions c
                 JOIN CompetitionParticipants cp ON c.competition_id = cp.competition_id
                 LEFT JOIN CompetitionParticipants cp2 ON c.competition_id = cp2.competition_id
@@ -419,6 +442,7 @@ def handle_client(conn: socket.socket, addr):
             """, (user_id,))
             rooms = []
             for row in cursor.fetchall():
+                fa_raw = row[10] if len(row) > 10 else None
                 rooms.append({
                     "id": row[0],
                     "name": row[1],
@@ -431,6 +455,7 @@ def handle_client(conn: socket.socket, addr):
                     "my_rank": row[8],
                     "my_focus_time": row[9],
                     "my_focus_time_formatted": StatsEngine.format_duration(row[9] or 0),
+                    "focus_apps": json.loads(fa_raw) if fa_raw else None,
                 })
             response = {"status": "success", "rooms": rooms}
 
@@ -487,47 +512,35 @@ def handle_client(conn: socket.socket, addr):
 
         elif action == "get_active_competition_leaderboard":
             user_id = request.get("user_id")
-            limit = request.get("limit", 5)
             if not user_id:
                 response = {"status": "error", "message": "Missing user_id"}
             else:
+                # Get ALL active competitions the user is in
                 cursor.execute("""
-                    SELECT DISTINCT c.competition_id, c.name
+                    SELECT c.competition_id, c.name, c.focus_apps,
+                           cp.rank, cp.total_focus_time_seconds,
+                           (SELECT COUNT(*) FROM CompetitionParticipants cp2
+                            WHERE cp2.competition_id = c.competition_id) AS total_participants
                     FROM Competitions c
                     JOIN CompetitionParticipants cp ON c.competition_id = cp.competition_id
                     WHERE cp.user_id = ? AND c.status = 'active'
                     ORDER BY c.competition_id DESC
-                    LIMIT 1
                 """, (user_id,))
-                active_comp = cursor.fetchone()
-                if not active_comp:
-                    response = {"status": "success", "competition": None, "leaderboard": []}
-                else:
-                    comp_id, comp_name = active_comp
-                    cursor.execute("""
-                        SELECT cp.rank, u.username, cp.total_focus_time_seconds,
-                               cp.sessions_count, cp.focus_score
-                        FROM CompetitionParticipants cp
-                        JOIN Users u ON cp.user_id = u.user_id
-                        WHERE cp.competition_id = ?
-                        ORDER BY cp.rank ASC
-                        LIMIT ?
-                    """, (comp_id, limit))
-                    leaderboard = []
-                    for row in cursor.fetchall():
-                        leaderboard.append({
-                            "rank": row[0],
-                            "username": row[1],
-                            "focus_time_seconds": row[2],
-                            "focus_time_formatted": StatsEngine.format_duration(row[2] or 0),
-                            "sessions_count": row[3],
-                            "focus_score": round(row[4], 1) if row[4] else 0.0,
-                        })
-                    response = {
-                        "status": "success",
-                        "competition": {"id": comp_id, "name": comp_name},
-                        "leaderboard": leaderboard,
-                    }
+                competitions = []
+                for row in cursor.fetchall():
+                    competitions.append({
+                        "id": row[0],
+                        "name": row[1],
+                        "focus_apps": json.loads(row[2]) if row[2] else None,
+                        "my_rank": row[3],
+                        "my_focus_time": row[4] or 0,
+                        "my_focus_time_formatted": StatsEngine.format_duration(row[4] or 0),
+                        "total_participants": row[5],
+                    })
+                response = {
+                    "status": "success",
+                    "competitions": competitions,
+                }
 
         else:
             response = {"status": "error", "message": f"Unknown action: '{action}'"}

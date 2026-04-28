@@ -76,6 +76,7 @@ def init_db():
             status           TEXT    DEFAULT 'pending',
             max_participants INTEGER DEFAULT 0,
             is_public        INTEGER DEFAULT 1,
+            focus_apps       TEXT,
             created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (creator_id) REFERENCES Users(user_id)
         );
@@ -105,6 +106,15 @@ def init_db():
     """)
 
     conn.commit()
+
+    # --- Migration: add focus_apps column if missing ---
+    cursor.execute("PRAGMA table_info(Competitions)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'focus_apps' not in columns:
+        cursor.execute("ALTER TABLE Competitions ADD COLUMN focus_apps TEXT")
+        conn.commit()
+        print("[DB] Migrated: added focus_apps column to Competitions")
+
     conn.close()
     print("[DB] Database initialized successfully.")
 
@@ -279,7 +289,7 @@ def get_public_competitions() -> list[dict]:
     cursor = conn.cursor()
     cursor.execute("""
         SELECT c.competition_id, c.name, c.description, c.start_date, c.end_date,
-               c.status, c.max_participants,
+               c.status, c.max_participants, c.focus_apps,
                u.username AS creator_name,
                COUNT(cp.user_id) AS participant_count
         FROM Competitions c

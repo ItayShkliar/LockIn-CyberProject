@@ -151,7 +151,7 @@ class NetworkClient:
 
     def create_competition(self, name: str, start_date: str, end_date: str,
                            description: str = "", max_participants: int = 0,
-                           is_public: bool = True) -> dict:
+                           is_public: bool = True, focus_apps: list = None) -> dict:
         if not self.logged_in_user_id:
             return {"status": "error", "message": "Must be logged in to create a competition."}
         payload = {
@@ -163,6 +163,7 @@ class NetworkClient:
             "description": description,
             "max_participants": max_participants,
             "is_public": is_public,
+            "focus_apps": focus_apps or [],
         }
         try:
             return self._send_request(payload)
@@ -258,14 +259,13 @@ class NetworkClient:
             "user_id": self.logged_in_user_id,
         })
 
-    def get_active_competition_leaderboard(self, limit=5):
-        """Fetches the leaderboard for the user's primary active competition."""
+    def get_active_competition_leaderboard(self):
+        """Fetches all active competitions the user is in, with their rank."""
         if not self.logged_in_user_id:
             return {"status": "error", "message": "Not logged in"}
         return self._send_request({
             "action": "get_active_competition_leaderboard",
             "user_id": self.logged_in_user_id,
-            "limit": limit,
         })
 
     def sync_offline_sessions(self):
