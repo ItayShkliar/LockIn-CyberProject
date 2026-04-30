@@ -1,11 +1,15 @@
+"""
+Settings Tab — Blocked apps, connection, profile, and achievements.
+"""
 import json
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
-    QTabWidget, QFrame, QSpinBox
+    QLineEdit, QMessageBox, QScrollArea,
+    QTabWidget, QFrame, QSpinBox, QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 
 CONFIG_FILE = "lockin_config.json"
 
@@ -17,84 +21,23 @@ class SettingsTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
+        layout.setContentsMargins(44, 44, 44, 44)
+        layout.setSpacing(24)
 
         title = QLabel("Settings")
         title.setObjectName("Title")
         layout.addWidget(title)
 
+        subtitle = QLabel("Configure your app preferences and view your profile.")
+        subtitle.setStyleSheet("color: #475569; font-size: 13px; margin-bottom: 4px;")
+        layout.addWidget(subtitle)
+
         self.sub_tabs = QTabWidget()
-        self.sub_tabs.addTab(self._build_blocked_apps_tab(), "Blocked Apps")
-        self.sub_tabs.addTab(self._build_connection_tab(), "Connection")
         self.sub_tabs.addTab(self._build_profile_tab(), "My Profile")
         self.sub_tabs.addTab(self._build_achievements_tab(), "Achievements")
+        self.sub_tabs.addTab(self._build_connection_tab(), "Connection")
 
         layout.addWidget(self.sub_tabs)
-
-    def _build_blocked_apps_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-
-        info = QLabel("Added apps will count as distractions during focus sessions.")
-        info.setObjectName("Subtitle")
-        layout.addWidget(info)
-
-        input_row = QHBoxLayout()
-        self.app_input = QLineEdit()
-        self.app_input.setPlaceholderText("e.g. chrome.exe")
-        self.app_input.returnPressed.connect(self._add_blocked_app)
-        input_row.addWidget(self.app_input)
-
-        add_btn = QPushButton("Add")
-        add_btn.setProperty("theme", "success")
-        add_btn.setFixedWidth(80)
-        add_btn.clicked.connect(self._add_blocked_app)
-        input_row.addWidget(add_btn)
-        layout.addLayout(input_row)
-
-        self.blocked_list = QListWidget()
-        layout.addWidget(self.blocked_list)
-
-        remove_btn = QPushButton("Remove Selected")
-        remove_btn.setProperty("theme", "danger")
-        remove_btn.clicked.connect(self._remove_blocked_app)
-        layout.addWidget(remove_btn, alignment=Qt.AlignRight)
-
-        self._load_blocked_apps()
-        return widget
-
-    def _load_blocked_apps(self):
-        self.blocked_list.clear()
-        config = self._read_config()
-        for app in config.get("blocked_apps", []):
-            self.blocked_list.addItem(QListWidgetItem(app))
-
-    def _add_blocked_app(self):
-        app_name = self.app_input.text().strip().lower()
-        if not app_name: return
-        config = self._read_config()
-        blocked = config.get("blocked_apps", [])
-        if app_name not in blocked:
-            blocked.append(app_name)
-            config["blocked_apps"] = blocked
-            self._write_config(config)
-        self.app_input.clear()
-        self._load_blocked_apps()
-
-    def _remove_blocked_app(self):
-        selected = self.blocked_list.selectedItems()
-        if not selected: return
-        config = self._read_config()
-        blocked = config.get("blocked_apps", [])
-        for item in selected:
-            app_name = item.text()
-            if app_name in blocked: blocked.remove(app_name)
-        config["blocked_apps"] = blocked
-        self._write_config(config)
-        self._load_blocked_apps()
 
     def _read_config(self) -> dict:
         if os.path.exists(CONFIG_FILE):
@@ -112,16 +55,26 @@ class SettingsTab(QWidget):
     def _build_connection_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
 
-        layout.addWidget(QLabel("Server Host:"))
+        header = QLabel("SERVER CONNECTION")
+        header.setObjectName("SectionHeader")
+        layout.addWidget(header)
+
+        host_lbl = QLabel("Host")
+        host_lbl.setStyleSheet("font-size: 11px; color: #475569; font-weight: 600; margin-top: 4px;")
+        layout.addWidget(host_lbl)
         self.host_input = QLineEdit()
+        self.host_input.setFixedHeight(38)
         layout.addWidget(self.host_input)
 
-        layout.addWidget(QLabel("Server Port:"))
+        port_lbl = QLabel("Port")
+        port_lbl.setStyleSheet("font-size: 11px; color: #475569; font-weight: 600; margin-top: 4px;")
+        layout.addWidget(port_lbl)
         self.port_input = QSpinBox()
         self.port_input.setRange(1, 65535)
+        self.port_input.setFixedHeight(38)
         layout.addWidget(self.port_input)
 
         config = self._read_config()
@@ -130,10 +83,13 @@ class SettingsTab(QWidget):
 
         save_btn = QPushButton("Save Settings")
         save_btn.setProperty("theme", "primary")
+        save_btn.setFixedHeight(40)
+        save_btn.setCursor(Qt.PointingHandCursor)
         save_btn.clicked.connect(self._save_connection)
         layout.addWidget(save_btn)
 
         self.conn_status_lbl = QLabel("")
+        self.conn_status_lbl.setStyleSheet("color: #475569; font-size: 12px;")
         layout.addWidget(self.conn_status_lbl)
         layout.addStretch()
         return widget
@@ -148,11 +104,18 @@ class SettingsTab(QWidget):
     def _build_profile_tab(self):
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        header = QLabel("YOUR PROFILE")
+        header.setObjectName("SectionHeader")
+        layout.addWidget(header)
 
         self.profile_card = QFrame()
         self.profile_card.setObjectName("Card")
         self.profile_layout = QVBoxLayout(self.profile_card)
+        self.profile_layout.setContentsMargins(24, 20, 24, 20)
+        self.profile_layout.setSpacing(10)
         layout.addWidget(self.profile_card)
         layout.addStretch()
         return widget
@@ -163,52 +126,91 @@ class SettingsTab(QWidget):
             if w: w.deleteLater()
 
         if not self.network_client or not self.network_client.logged_in_user_id:
-            self.profile_layout.addWidget(QLabel("Not logged in."))
+            lbl = QLabel("Not logged in.")
+            lbl.setStyleSheet("color: #334155;")
+            self.profile_layout.addWidget(lbl)
             return
 
         response = self.network_client.get_user_profile()
         if response.get("status") != "success":
-            self.profile_layout.addWidget(QLabel("Failed to load profile."))
+            lbl = QLabel("Failed to load profile.")
+            lbl.setStyleSheet("color: #f87171;")
+            self.profile_layout.addWidget(lbl)
             return
 
         p = response.get("profile", {})
-        title = QLabel(p.get("username", "User"))
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #3b82f6;")
-        self.profile_layout.addWidget(title)
-        self.profile_layout.addWidget(QLabel(p.get("email", "")))
-        
-        self.profile_layout.addSpacing(20)
-        
+
+        # Username
+        username_lbl = QLabel(p.get("username", "User"))
+        username_lbl.setStyleSheet(
+            "font-size: 22px; font-weight: 800; color: #60a5fa; background: transparent;"
+        )
+        self.profile_layout.addWidget(username_lbl)
+
+        email_lbl = QLabel(p.get("email", ""))
+        email_lbl.setStyleSheet("color: #475569; font-size: 12px; background: transparent;")
+        self.profile_layout.addWidget(email_lbl)
+
+        # Divider
+        div = QFrame()
+        div.setFixedHeight(1)
+        div.setStyleSheet("background-color: rgba(51, 65, 85, 0.2); border: none;")
+        self.profile_layout.addWidget(div)
+
+        # Stats
         stats = [
             ("Total Sessions", str(p.get("total_sessions", 0))),
             ("Current Streak", f"{p.get('current_streak_days', 0)} days"),
-            ("Avg Score", f"{p.get('total_score', 0.0):.1f}")
+            ("Avg Score", f"{p.get('total_score', 0.0):.1f}"),
         ]
         for label, val in stats:
             row = QHBoxLayout()
-            row.addWidget(QLabel(label))
+            lbl = QLabel(label)
+            lbl.setStyleSheet("color: #475569; font-size: 13px; background: transparent;")
+            row.addWidget(lbl)
             v = QLabel(val)
-            v.setStyleSheet("font-weight: bold;")
+            v.setStyleSheet(
+                "font-weight: 700; color: #e2e8f0; font-size: 13px; background: transparent;"
+            )
             row.addStretch()
             row.addWidget(v)
             self.profile_layout.addLayout(row)
 
     def _build_achievements_tab(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
+
+        header = QLabel("ACHIEVEMENTS")
+        header.setObjectName("SectionHeader")
+        layout.addWidget(header)
+
         self.ach_layout = QVBoxLayout()
         self.ach_layout.setSpacing(10)
         layout.addLayout(self.ach_layout)
         layout.addStretch()
-        return widget
 
-    ACHIEVEMENT_META = {
-        "first_session":  ("First Step", "Complete your first session"),
-        "sessions_10":    ("Dedicated", "Complete 10 sessions"),
-        "focus_1h":       ("One Hour Club", "Accumulate 1 hour focus"),
-        "streak_3":       ("On a Roll", "Maintain a 3-day streak"),
-    }
+        scroll.setWidget(widget)
+        return scroll
+
+    # Maps server achievement IDs → (display name, description, icon emoji)
+    ACHIEVEMENT_META = [
+        ("first_session", "First Step",       "Complete your first focus session",    "🚀"),
+        ("sessions_10",   "Dedicated",        "Complete 10 focus sessions",           "🔟"),
+        ("sessions_50",   "Focused",          "Complete 50 focus sessions",           "💪"),
+        ("sessions_100",  "Elite Focuser",    "Complete 100 focus sessions",          "👑"),
+        ("focus_1h",      "One Hour Club",    "Accumulate 1 hour of total focus",     "⏰"),
+        ("focus_10h",     "Ten Hour Warrior", "Accumulate 10 hours of total focus",   "⚔️"),
+        ("focus_100h",    "Century Focuser",  "Accumulate 100 hours of total focus",  "💎"),
+        ("streak_3",      "On a Roll",        "Maintain a 3-day focus streak",        "🔥"),
+        ("streak_7",      "Week Warrior",     "Maintain a 7-day focus streak",        "⚡"),
+        ("streak_30",     "Monthly Master",   "Maintain a 30-day focus streak",       "🏆"),
+    ]
 
     def _load_achievements(self):
         for i in reversed(range(self.ach_layout.count())):
@@ -219,21 +221,53 @@ class SettingsTab(QWidget):
         if response.get("status") != "success": return
         unlocked = {a["achievement_type"] for a in response.get("achievements", [])}
 
-        for ach_type, (name, desc) in self.ACHIEVEMENT_META.items():
+        for ach_type, name, desc, emoji in self.ACHIEVEMENT_META:
             card = QFrame()
             card.setObjectName("Card")
             cl = QHBoxLayout(card)
-            
+            cl.setContentsMargins(18, 14, 18, 14)
+            cl.setSpacing(14)
+
             is_un = ach_type in unlocked
-            icon = QLabel("★" if is_un else "☆")
-            icon.setStyleSheet(f"font-size: 24px; color: {'#10b981' if is_un else '#475569'};")
+
+            # Icon circle with emoji
+            icon = QLabel(emoji)
+            icon_bg = "rgba(59, 130, 246, 0.1)" if is_un else "rgba(13, 18, 36, 0.8)"
+            icon_border = "rgba(59, 130, 246, 0.3)" if is_un else "rgba(51, 65, 85, 0.3)"
+            icon.setStyleSheet(
+                f"font-size: 18px; "
+                f"background: {icon_bg}; "
+                f"border: 1px solid {icon_border}; "
+                f"border-radius: 20px; "
+                f"min-width: 40px; min-height: 40px; max-width: 40px; max-height: 40px;"
+            )
+            icon.setAlignment(Qt.AlignCenter)
+
+            # Glow for unlocked
+            if is_un:
+                glow = QGraphicsDropShadowEffect()
+                glow.setBlurRadius(20)
+                glow.setColor(QColor(59, 130, 246, 40))
+                glow.setOffset(0, 0)
+                icon.setGraphicsEffect(glow)
+
             cl.addWidget(icon)
-            
+
             tl = QVBoxLayout()
+            tl.setSpacing(2)
             nl = QLabel(name)
-            nl.setStyleSheet(f"font-weight: bold; color: {'#f8fafc' if is_un else '#475569'};")
+            nl.setStyleSheet(
+                f"font-weight: 700; font-size: 14px; "
+                f"color: {'#f8fafc' if is_un else '#334155'}; background: transparent;"
+            )
             tl.addWidget(nl)
-            tl.addWidget(QLabel(desc))
+
+            dl = QLabel(desc)
+            dl.setStyleSheet(
+                f"color: {'#64748b' if is_un else '#1e293b'}; "
+                f"font-size: 12px; background: transparent;"
+            )
+            tl.addWidget(dl)
             cl.addLayout(tl)
             cl.addStretch()
             self.ach_layout.addWidget(card)

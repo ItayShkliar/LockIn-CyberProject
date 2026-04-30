@@ -25,7 +25,8 @@ class LockInApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Lock In - Productivity")
-        self.resize(1000, 700) 
+        self.resize(1000, 700)
+        self.setMinimumSize(1000, 700)
         # Application context stylesheet is set in __main__ or globally via QApplication
         
         self.network_client = NetworkClient()
