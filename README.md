@@ -19,39 +19,6 @@ By transforming solitary work into a social, competitive experience, LockIn crea
 
 LockIn employs a robust **Client-Server Architecture**. 
 
-```mermaid
-graph TD
-    subgraph Client [LockIn Desktop Client (PyQt5)]
-        UI[UI Layer: PyQt5 Views & Tabs]
-        SM[Session Manager]
-        AM[App Monitor & Scanner]
-        NC[Network Client]
-        
-        UI <--> SM
-        SM <--> AM
-        UI <--> NC
-        SM <--> NC
-    end
-
-    subgraph Transport [Network Layer]
-        TLS[Secure TLS/SSL TCP Socket]
-        JSON[4-Byte Length-Prefixed JSON]
-    end
-
-    subgraph Server [LockIn Backend Server (Python)]
-        SS[Multi-threaded Socket Server]
-        SE[Stats Engine]
-        DB[(SQLite Database)]
-        
-        SS <--> SE
-        SS <--> DB
-    end
-
-    NC <==>|Encrypted TCP| TLS
-    TLS <==> JSON
-    JSON <==> SS
-```
-
 ### 1. The Client (Frontend & OS Monitor)
 The client is a desktop application that acts as both the user interface and the local telemetry agent.
 
