@@ -82,7 +82,7 @@ class NetworkClient:
     # -----------------------------------------------------------------------
 
     def register(self, username: str, email: str, password: str) -> dict:
-        \"\"\"Registers a new user account with the server and returns the status.\"\"\"
+        """Registers a new user account with the server and returns the status."""
         payload = {"action": "register", "username": username,
                    "email": email, "password": password}
         try:
@@ -91,7 +91,7 @@ class NetworkClient:
             return {"status": "error", "message": str(e)}
 
     def login(self, username: str, password: str) -> dict:
-        \"\"\"Authenticates a user against the server and initializes the local session state.\"\"\"
+        """Authenticates a user against the server and initializes the local session state."""
         payload = {"action": "login", "username": username, "password": password}
         try:
             response = self._send_request(payload)
@@ -113,7 +113,7 @@ class NetworkClient:
     # -----------------------------------------------------------------------
 
     def upload_session(self, session_data: dict) -> dict:
-        \"\"\"Sends a completed focus session payload to the server for database persistence.\"\"\"
+        """Sends a completed focus session payload to the server for database persistence."""
         if not self.logged_in_user_id:
             return {"status": "error", "message": "User not logged in."}
         payload = {
@@ -185,7 +185,7 @@ class NetworkClient:
             return {"status": "error", "message": str(e)}
 
     def join_competition(self, room_code: int) -> dict:
-        \"\"\"Creates a new competition room with specific rules (e.g., target duration, allowed apps).\"\"\"
+        """Creates a new competition room with specific rules (e.g., target duration, allowed apps)."""
         if not self.logged_in_user_id:
             return {"status": "error", "message": "Must be logged in to join a competition."}
         payload = {
@@ -221,7 +221,7 @@ class NetworkClient:
             return {"status": "error", "message": str(e)}
 
     def get_global_leaderboard(self, limit: int = 20) -> dict:
-        \"\"\"Fetches the top global users ranked by overall focus score.\"\"\"
+        """Fetches the top global users ranked by overall focus score."""
         payload = {"action": "get_global_leaderboard", "limit": limit}
         try:
             return self._send_request(payload)
@@ -229,7 +229,7 @@ class NetworkClient:
             return {"status": "error", "message": str(e)}
 
     def get_user_competitions(self) -> dict:
-        \"\"\"Retrieves all competitions the active user is participating in.\"\"\"
+        """Retrieves all competitions the active user is participating in."""
         if not self.logged_in_user_id:
             return {"status": "error", "message": "Not logged in"}
         payload = {"action": "get_user_competitions", "user_id": self.logged_in_user_id}
@@ -239,7 +239,7 @@ class NetworkClient:
             return {"status": "error", "message": str(e)}
 
     def get_competition_details(self, competition_id: int) -> dict:
-        \"\"\"Retrieves the current status and participant ranks for a specific competition.\"\"\"
+        """Retrieves the current status and participant ranks for a specific competition."""
         payload = {"action": "get_competition_details", "competition_id": int(competition_id)}
         try:
             return self._send_request(payload)
