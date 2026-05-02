@@ -24,18 +24,17 @@ class SettingsTab(QWidget):
         layout.setContentsMargins(44, 44, 44, 44)
         layout.setSpacing(24)
 
-        title = QLabel("Settings")
+        title = QLabel("MY PROFILE")
         title.setObjectName("Title")
         layout.addWidget(title)
 
-        subtitle = QLabel("Configure your app preferences and view your profile.")
+        subtitle = QLabel("View your profile statistics and achievements.")
         subtitle.setStyleSheet("color: #475569; font-size: 13px; margin-bottom: 4px;")
         layout.addWidget(subtitle)
 
         self.sub_tabs = QTabWidget()
         self.sub_tabs.addTab(self._build_profile_tab(), "My Profile")
         self.sub_tabs.addTab(self._build_achievements_tab(), "Achievements")
-        self.sub_tabs.addTab(self._build_connection_tab(), "Connection")
 
         layout.addWidget(self.sub_tabs)
 

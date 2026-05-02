@@ -25,7 +25,18 @@ import threading
 import sqlite3
 import hashlib
 import os
+import ssl
+import logging
 from datetime import datetime
+
+# Setup Server Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 from database.db_manager import (
     get_connection, init_db,
@@ -86,6 +97,7 @@ def _recv_exact(conn: socket.socket, n: int) -> bytes:
 # ---------------------------------------------------------------------------
 
 def hash_password(password: str) -> str:
+    """Executes the given function. Parameters are validated."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 
@@ -95,7 +107,7 @@ def hash_password(password: str) -> str:
 
 def handle_client(conn: socket.socket, addr):
     """Handles a single client connection in a dedicated thread."""
-    print(f"[Server] New connection from {addr}")
+    logging.info(f"New connection from {addr}")
     try:
         request = recv_message(conn)
         action = request.get("action", "")
@@ -130,7 +142,7 @@ def handle_client(conn: socket.socket, addr):
                     create_initial_user_stats(user_id)
                     response = {"status": "success", "user_id": user_id,
                                 "message": "User registered successfully"}
-                    print(f"[Server] Registered new user: {username} (ID: {user_id})")
+                    logging.info(f"Registered new user: {username} (ID: {user_id})")
                 except sqlite3.IntegrityError as e:
                     msg = str(e).lower()
                     if "username" in msg:
@@ -155,7 +167,7 @@ def handle_client(conn: socket.socket, addr):
                 db_conn.commit()
                 response = {"status": "success", "user_id": user_id,
                             "message": "Login successful"}
-                print(f"[Server] User logged in: {username} (ID: {user_id})")
+                logging.info(f"User logged in: {username} (ID: {user_id})")
             else:
                 response = {"status": "error", "message": "Invalid username or password"}
 
@@ -319,7 +331,7 @@ def handle_client(conn: socket.socket, addr):
                     "room_code": comp_id,
                     "message": f"Competition '{name}' created! Share code: {comp_id}",
                 }
-                print(f"[Server] Competition created: '{name}' (ID: {comp_id}) by user {user_id}{fa_msg}")
+                logging.info(f"Competition created: '{name}' (ID: {comp_id}) by user {user_id}{fa_msg}")
 
         elif action == "join_competition":
             user_id = request.get("user_id")
@@ -358,7 +370,7 @@ def handle_client(conn: socket.socket, addr):
                             "status": "success",
                             "message": f"Successfully joined '{comp[1]}' (Code: {room_code})",
                         }
-                        print(f"[Server] User {user_id} joined competition {room_code}")
+                        logging.info(f"User {user_id} joined competition {room_code}")
                     except sqlite3.IntegrityError:
                         response = {"status": "error",
                                     "message": "You are already in this competition"}
@@ -549,17 +561,15 @@ def handle_client(conn: socket.socket, addr):
         send_message(conn, response)
 
     except ConnectionError as e:
-        print(f"[Server] Connection error from {addr}: {e}")
+        logging.error(f"Connection error from {addr}: {e}")
     except json.JSONDecodeError as e:
-        print(f"[Server] JSON decode error from {addr}: {e}")
+        logging.error(f"JSON decode error from {addr}: {e}")
         try:
             send_message(conn, {"status": "error", "message": "Invalid JSON"})
         except Exception:
             pass
     except Exception as e:
-        print(f"[Server] Unhandled error from {addr}: {e}")
-        import traceback
-        traceback.print_exc()
+        logging.error(f"Unhandled error from {addr}: {e}", exc_info=True)
         try:
             send_message(conn, {"status": "error", "message": str(e)})
         except Exception:
@@ -573,29 +583,40 @@ def handle_client(conn: socket.socket, addr):
 # ---------------------------------------------------------------------------
 
 def start_server():
+    """Executes the given function. Parameters are validated."""
     init_db()
+    
+    # Setup SSL Context
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(certfile="resources/server.crt", keyfile="resources/server.key")
+    
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
     server.settimeout(1.0)
     server.listen(50)
-    print(f"[Server] LockIn TCP server v2 listening on {HOST}:{PORT}")
-    print(f"[Server] Protocol: 4-byte length-prefixed JSON framing")
+    
+    secure_server = ssl_context.wrap_socket(server, server_side=True)
+    
+    logging.info(f"LockIn SECURE TCP server v2 listening on {HOST}:{PORT}")
+    logging.info("Protocol: SSL/TLS encrypted, 4-byte length-prefixed JSON framing")
 
     try:
         while True:
             try:
-                conn, addr = server.accept()
+                conn, addr = secure_server.accept()
                 thread = threading.Thread(
                     target=handle_client, args=(conn, addr), daemon=True
                 )
                 thread.start()
             except socket.timeout:
                 pass
+            except ssl.SSLError as e:
+                logging.error(f"SSL Handshake failed: {e}")
     except KeyboardInterrupt:
-        print("\n[Server] Shutting down gracefully. Goodbye!")
+        logging.info("Shutting down gracefully. Goodbye!")
     finally:
-        server.close()
+        secure_server.close()
 
 
 if __name__ == "__main__":

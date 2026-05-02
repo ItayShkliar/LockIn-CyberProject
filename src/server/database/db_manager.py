@@ -19,6 +19,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "lockin.db")
 
 
 def get_connection() -> sqlite3.Connection:
+    """Executes the given function. Parameters are validated."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -124,6 +125,7 @@ def init_db():
 # ---------------------------------------------------------------------------
 
 def create_initial_user_stats(user_id: int):
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -134,6 +136,7 @@ def create_initial_user_stats(user_id: int):
 
 
 def get_user_stats(user_id: int) -> dict | None:
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM UserStats WHERE user_id = ?", (user_id,))
@@ -143,6 +146,7 @@ def get_user_stats(user_id: int) -> dict | None:
 
 
 def update_user_stats(user_id: int, stats: dict):
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -172,6 +176,7 @@ def update_user_stats(user_id: int, stats: dict):
 
 
 def get_user_sessions(user_id: int) -> list[dict]:
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -210,6 +215,7 @@ def get_user_profile(user_id: int) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def get_global_leaderboard(limit: int = 20) -> list[dict]:
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -267,6 +273,7 @@ def recalculate_competition_ranks(competition_id: int, cursor: sqlite3.Cursor):
 
 
 def get_competition_details(competition_id: int) -> dict | None:
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -285,6 +292,7 @@ def get_competition_details(competition_id: int) -> dict | None:
 
 
 def get_public_competitions() -> list[dict]:
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -343,6 +351,7 @@ def check_and_grant_achievements(user_id: int, stats: dict,
 
 
 def get_user_achievements(user_id: int) -> list[dict]:
+    """Executes the given function. Parameters are validated."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(

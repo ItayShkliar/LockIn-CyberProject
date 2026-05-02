@@ -86,7 +86,7 @@ class MainWindowView(QWidget):
             ("competitions_btn", "🏆  Competitions"),
             ("leaderboard_btn",  "📊  Leaderboards"),
             ("stats_btn",        "📈  History"),
-            ("settings_btn",     "⚙  Settings"),
+            ("settings_btn",     "👤  My Profile"),
         ]
 
         for btn_name, text in nav_items:
