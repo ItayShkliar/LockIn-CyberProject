@@ -1,6 +1,9 @@
 """
-Main Window View — Sidebar + content area shell.
-Premium sidebar with logo, minimal navigation icons, and smooth active states.
+Main Window View Module
+
+This module defines the primary layout shell for the application.
+It follows a master-detail pattern with a static Sidebar for navigation 
+and a dynamic StackedWidget for content display.
 """
 import os
 import sys
@@ -11,6 +14,15 @@ from PyQt5.QtGui import QPixmap
 
 
 def _resource_path(filename: str) -> str:
+    """
+    Resolves the absolute path to an asset within the resources/ directory.
+    
+    Args:
+        filename (str): The name of the file to locate.
+        
+    Returns:
+        str: The full path to the resource.
+    """
     if getattr(sys, 'frozen', False):
         base = sys._MEIPASS
     else:
@@ -19,11 +31,23 @@ def _resource_path(filename: str) -> str:
 
 
 class MainWindowView(QWidget):
+    """
+    The MainWindowView class serves as the container for the entire app UI post-login.
+    
+    It manages the switching logic between different tabs (Home, Focus, Profile, etc.)
+    and maintains the visual consistency of the sidebar.
+    """
     def __init__(self):
+        """
+        Initializes the main application window view.
+        """
         super().__init__()
         self._init_ui()
 
     def _init_ui(self):
+        """
+        Constructs the sidebar, the logo area, and the central stacked widget.
+        """
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)

@@ -1,6 +1,9 @@
 """
-Main Application Entry Point
-Orchestrates the UI views and Logic managers.
+LockIn Application Main Entry Point
+
+This module orchestrates the entire client-side application. It initializes 
+the network client, manages the session state, and handles the transitions 
+between the login screen and the main dashboard.
 """
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
@@ -22,7 +25,17 @@ from logic.network_client import NetworkClient
 from logic.session_manager import SessionManager
 
 class LockInApp(QMainWindow):
+    """
+    The LockInApp class is the central controller for the application.
+    
+    It inherits from QMainWindow and manages a QStackedWidget that 
+    toggles between the LoginView and the MainWindowView. It also 
+    handles the primary business logic for session timing and networking.
+    """
     def __init__(self):
+        """
+        Initializes the application, logic managers, and UI components.
+        """
         super().__init__()
         self.setWindowTitle("Lock In - Productivity")
         self.resize(1000, 700)

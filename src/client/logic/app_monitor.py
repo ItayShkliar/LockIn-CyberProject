@@ -26,6 +26,7 @@ class AppMonitor:
     """
 
     def __init__(self):
+        """Initializes the background monitor thread, lock, and tracking metrics."""
         self._is_running = False
         self._focus_apps = []
         self._focus_tabs = []          # keywords for allowed browser tabs

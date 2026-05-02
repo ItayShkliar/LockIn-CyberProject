@@ -1,21 +1,37 @@
 """
-Stats Engine (v2)
-Handles all business logic for calculating and updating user statistics.
+Stats Engine Module
+
+This module handles all business logic for calculating and updating user statistics.
+It processes session data, calculates focus scores, handles streak logic, and formats durations.
 """
 
 from datetime import datetime, date
 
 
 class StatsEngine:
+    """
+    A utility class containing static methods for statistical calculations.
+    It processes focus sessions and determines performance metrics without directly
+    interacting with the database, ensuring clean separation of concerns.
+    """
 
     @staticmethod
     def calculate_focus_score(focus_time_seconds: int,
                                total_time_seconds: int,
                                distraction_count: int) -> float:
         """
-        Calculates a focus score from 0-100 based on:
-          - Focus ratio (70% weight): how much of the session was focused
-          - Distraction penalty (30% weight): penalises frequent distractions
+        Calculates a focus score from 0-100 based on session performance.
+
+        The score is heavily weighted towards the focus ratio (70%) and applies a 
+        penalty for frequent distractions (30%).
+
+        Args:
+            focus_time_seconds (int): Total seconds spent explicitly focused.
+            total_time_seconds (int): Total duration of the session in seconds.
+            distraction_count (int): Number of times the user switched to a blocked application.
+
+        Returns:
+            float: The calculated focus score (0.0 to 100.0).
         """
         if total_time_seconds <= 0:
             return 0.0
@@ -32,7 +48,15 @@ class StatsEngine:
 
     @staticmethod
     def format_duration(seconds: int) -> str:
-        """Converts seconds to HH:MM:SS string."""
+        """
+        Converts a duration in seconds to a formatted HH:MM:SS string.
+
+        Args:
+            seconds (int): The total number of seconds.
+
+        Returns:
+            str: The formatted time string (e.g., '01:30:15').
+        """
         if not seconds or seconds < 0:
             return "00:00:00"
         h = seconds // 3600
@@ -43,8 +67,18 @@ class StatsEngine:
     @staticmethod
     def calculate_updated_totals(current_stats: dict, session_data: dict) -> dict:
         """
-        Merges a new session into the existing UserStats dict.
-        Returns the updated stats dict (does not write to DB).
+        Merges a new session's data into an existing user's statistics dictionary.
+        
+        It recalculates total sessions, time, distractions, updates the all-time 
+        best session, manages the rolling average focus score, and calculates streaks 
+        based on the last session date.
+
+        Args:
+            current_stats (dict): The user's current statistics from the database.
+            session_data (dict): The data from the newly completed focus session.
+
+        Returns:
+            dict: A new dictionary containing the updated statistics.
         """
         updated = dict(current_stats)
 

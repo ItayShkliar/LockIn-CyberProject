@@ -14,12 +14,30 @@ from PyQt5.QtGui import QColor
 CONFIG_FILE = "lockin_config.json"
 
 class SettingsTab(QWidget):
+    """
+    The SettingsTab (now My Profile) provides a centralized view for user-specific data.
+    
+    It contains sub-tabs for:
+    - My Profile: Displays current user stats and bio information.
+    - Achievements: Shows unlocked trophies and progress milestones.
+    
+    This component interacts with the NetworkClient to fetch real-time profile data.
+    """
     def __init__(self, network_client=None):
+        """
+        Initializes the settings tab with a network client for data fetching.
+        
+        Args:
+            network_client (NetworkClient, optional): The client used for API communication.
+        """
         super().__init__()
         self.network_client = network_client
         self._build_ui()
 
     def _build_ui(self):
+        """
+        Constructs the visual layout of the profile tab, including the title and sub-tabs.
+        """
         layout = QVBoxLayout(self)
         layout.setContentsMargins(44, 44, 44, 44)
         layout.setSpacing(24)

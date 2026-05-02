@@ -9,6 +9,14 @@ from datetime import datetime
 
 
 class SessionManager:
+    """
+    Manages the lifecycle of a focus session.
+    
+    This class orchestrates the tracking of active applications and browser tabs
+    by interacting with the AppMonitor and AppScanner. It also aggregates the raw 
+    data to calculate the final focus score and prepares the session payload 
+    for database synchronization.
+    """
     def __init__(self):
         self.is_active = False
         self._monitor = AppMonitor() 
@@ -35,6 +43,14 @@ class SessionManager:
         print(f"[Session] Started: {self.description}")
 
     def stop_session(self) -> dict:
+        """
+        Terminates the currently active focus session and aggregates the final statistics.
+
+        Returns:
+            dict: A dictionary representing the completed session, including start/end times,
+                  total elapsed time, focus time, distraction count, final score, and a 
+                  breakdown of time spent per tracked application.
+        """
         self.is_active = False
         total, focus, dists, app_times = self._monitor.stop_monitoring()
         _, _, _, _, final_score = self.get_current_stats()

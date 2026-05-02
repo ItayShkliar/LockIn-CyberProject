@@ -1,14 +1,15 @@
 """
-Database Manager (v2)
-Handles all SQLite operations for the LockIn server.
-New in v2:
-  - Achievements table and auto-grant logic
-  - Global leaderboard query
-  - Competition details with participant count
-  - Public competitions browser
-  - Competition rank recalculation
-  - Auto competition status updates
-  - User profile query
+Database Manager Module
+
+This module serves as the primary data access layer for the LockIn server.
+It manages a SQLite database to persist user accounts, session history, 
+achievements, and competition data.
+
+Key Responsibilities:
+- Connection pooling and management.
+- Schema initialization and migration logic.
+- Transactional integrity for statistical updates.
+- Query optimization for leaderboards and competitions.
 """
 
 import sqlite3
@@ -19,7 +20,15 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "lockin.db")
 
 
 def get_connection() -> sqlite3.Connection:
-    """Executes the given function. Parameters are validated."""
+    """
+    Creates and configures a new SQLite connection.
+    
+    Ensures that row factory is set to sqlite3.Row for dictionary-like access
+    and that foreign key constraints are strictly enforced.
+    
+    Returns:
+        sqlite3.Connection: A configured database connection object.
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -27,7 +36,13 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db():
-    """Creates all tables if they don't exist."""
+    """
+    Initializes the database schema if it does not already exist.
+    
+    Creates tables for Users, UserStats, Sessions, Competitions, 
+    Participants, and Achievements. This method should be called once 
+    upon server startup.
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -125,7 +140,7 @@ def init_db():
 # ---------------------------------------------------------------------------
 
 def create_initial_user_stats(user_id: int):
-    """Executes the given function. Parameters are validated."""
+    """Initializes the database schema by creating required tables if they do not exist."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -136,7 +151,7 @@ def create_initial_user_stats(user_id: int):
 
 
 def get_user_stats(user_id: int) -> dict | None:
-    """Executes the given function. Parameters are validated."""
+    """Creates an empty statistics record for a newly registered user."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM UserStats WHERE user_id = ?", (user_id,))
@@ -146,7 +161,7 @@ def get_user_stats(user_id: int) -> dict | None:
 
 
 def update_user_stats(user_id: int, stats: dict):
-    """Executes the given function. Parameters are validated."""
+    """Retrieves the statistics record for a specific user ID."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -176,7 +191,7 @@ def update_user_stats(user_id: int, stats: dict):
 
 
 def get_user_sessions(user_id: int) -> list[dict]:
-    """Executes the given function. Parameters are validated."""
+    """Updates the statistics record for a specific user ID with new session data."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -215,7 +230,7 @@ def get_user_profile(user_id: int) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def get_global_leaderboard(limit: int = 20) -> list[dict]:
-    """Executes the given function. Parameters are validated."""
+    """Retrieves all historical focus sessions for a specific user ID."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -273,7 +288,7 @@ def recalculate_competition_ranks(competition_id: int, cursor: sqlite3.Cursor):
 
 
 def get_competition_details(competition_id: int) -> dict | None:
-    """Executes the given function. Parameters are validated."""
+    """Fetches the username and email profile information for a specific user ID."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -292,7 +307,7 @@ def get_competition_details(competition_id: int) -> dict | None:
 
 
 def get_public_competitions() -> list[dict]:
-    """Executes the given function. Parameters are validated."""
+    """Retrieves the top users globally ranked by total focus score."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -351,7 +366,7 @@ def check_and_grant_achievements(user_id: int, stats: dict,
 
 
 def get_user_achievements(user_id: int) -> list[dict]:
-    """Executes the given function. Parameters are validated."""
+    """Iterates through competitions and updates their status (e.g. pending -> active -> completed) based on time."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(

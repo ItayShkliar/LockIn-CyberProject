@@ -1,5 +1,9 @@
 """
-Competitions Tab — Create, browse, join, and manage competitions.
+Competitions Tab Module
+
+This module provides the user interface for managing competitions.
+It allows users to browse public rooms, join existing competitions via code,
+create new private or public rooms, and view their active competition status.
 """
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -11,12 +15,30 @@ from PyQt5.QtCore import Qt, QDateTime
 from datetime import datetime
 
 class CompetitionsTab(QWidget):
+    """
+    The CompetitionsTab is the primary hub for the application's gamification features.
+    
+    It manages multiple sub-interfaces using a QTabWidget:
+    - My Competitions: Lists rooms where the user is a participant.
+    - Browse Public: Displays globally available rooms to join.
+    - Create New: Form to instantiate a new competition with custom rules.
+    - Join by Code: Simple entry for private rooms.
+    """
     def __init__(self, network_client):
+        """
+        Initializes the competitions interface.
+        
+        Args:
+            network_client (NetworkClient): The bridge to the server for room data.
+        """
         super().__init__()
         self.network_client = network_client
         self._build_ui()
 
     def _build_ui(self):
+        """
+        Constructs the high-level layout of the competitions tab.
+        """
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(44, 44, 44, 44)
         main_layout.setSpacing(24)

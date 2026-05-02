@@ -1,5 +1,9 @@
 """
-Login View — Premium dark login screen with background image and logo.
+Login View Module
+
+This module provides the authentication interface for the application.
+It features a premium, responsive login and registration card with 
+background styling and integrated logo assets.
 """
 import os
 import sys
@@ -10,7 +14,18 @@ from PyQt5.QtGui import QPixmap, QPalette, QBrush, QColor, QFont
 
 
 def _resource_path(filename: str) -> str:
-    """Resolves a path inside the resources/ folder, works for both dev and PyInstaller."""
+    """
+    Resolves the absolute path to an asset within the resources/ directory.
+    
+    Handles path resolution for both the development environment and 
+    packaged executables (PyInstaller).
+    
+    Args:
+        filename (str): The name of the file to locate.
+        
+    Returns:
+        str: The full path to the resource.
+    """
     if getattr(sys, 'frozen', False):
         base = sys._MEIPASS
     else:
@@ -19,12 +34,24 @@ def _resource_path(filename: str) -> str:
 
 
 class LoginView(QWidget):
+    """
+    The LoginView class manages the user interface for authentication.
+    
+    It supports toggling between 'Login' and 'Register' modes, updating 
+    field labels and button text dynamically without reloading the widget.
+    """
     def __init__(self):
+        """
+        Initializes the login view state and triggers UI construction.
+        """
         super().__init__()
         self.is_login_mode = True
         self._init_ui()
 
     def _init_ui(self):
+        """
+        Sets up the background, the centered card, and all input widgets.
+        """
         # ── Background image ──
         self.setAutoFillBackground(True)
         bg_path = _resource_path("login_bg.png")

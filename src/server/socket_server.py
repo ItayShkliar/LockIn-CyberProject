@@ -97,7 +97,7 @@ def _recv_exact(conn: socket.socket, n: int) -> bytes:
 # ---------------------------------------------------------------------------
 
 def hash_password(password: str) -> str:
-    """Executes the given function. Parameters are validated."""
+    """Encodes a JSON payload and sends it over the socket, prefixed by a 4-byte message length header."""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 
@@ -583,7 +583,7 @@ def handle_client(conn: socket.socket, addr):
 # ---------------------------------------------------------------------------
 
 def start_server():
-    """Executes the given function. Parameters are validated."""
+    """Reads a 4-byte length header from the socket, then reads the exact message body and decodes it from JSON."""
     init_db()
     
     # Setup SSL Context
