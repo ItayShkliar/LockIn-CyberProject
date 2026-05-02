@@ -11,7 +11,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 
-CONFIG_FILE = "lockin_config.json"
 
 class SettingsTab(QWidget):
     """
@@ -56,67 +55,6 @@ class SettingsTab(QWidget):
 
         layout.addWidget(self.sub_tabs)
 
-    def _read_config(self) -> dict:
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, "r") as f: return json.load(f)
-            except Exception: pass
-        return {"blocked_apps": []}
-
-    def _write_config(self, config: dict):
-        try:
-            with open(CONFIG_FILE, "w") as f: json.dump(config, f, indent=4)
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Could not save: {e}")
-
-    def _build_connection_tab(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(14)
-
-        header = QLabel("SERVER CONNECTION")
-        header.setObjectName("SectionHeader")
-        layout.addWidget(header)
-
-        host_lbl = QLabel("Host")
-        host_lbl.setStyleSheet("font-size: 11px; color: #475569; font-weight: 600; margin-top: 4px;")
-        layout.addWidget(host_lbl)
-        self.host_input = QLineEdit()
-        self.host_input.setFixedHeight(38)
-        layout.addWidget(self.host_input)
-
-        port_lbl = QLabel("Port")
-        port_lbl.setStyleSheet("font-size: 11px; color: #475569; font-weight: 600; margin-top: 4px;")
-        layout.addWidget(port_lbl)
-        self.port_input = QSpinBox()
-        self.port_input.setRange(1, 65535)
-        self.port_input.setFixedHeight(38)
-        layout.addWidget(self.port_input)
-
-        config = self._read_config()
-        self.host_input.setText(config.get("server_host", "127.0.0.1"))
-        self.port_input.setValue(config.get("server_port", 65432))
-
-        save_btn = QPushButton("Save Settings")
-        save_btn.setProperty("theme", "primary")
-        save_btn.setFixedHeight(40)
-        save_btn.setCursor(Qt.PointingHandCursor)
-        save_btn.clicked.connect(self._save_connection)
-        layout.addWidget(save_btn)
-
-        self.conn_status_lbl = QLabel("")
-        self.conn_status_lbl.setStyleSheet("color: #475569; font-size: 12px;")
-        layout.addWidget(self.conn_status_lbl)
-        layout.addStretch()
-        return widget
-
-    def _save_connection(self):
-        config = self._read_config()
-        config["server_host"] = self.host_input.text().strip()
-        config["server_port"] = self.port_input.value()
-        self._write_config(config)
-        QMessageBox.information(self, "Saved", "Settings saved. Please restart the app.")
 
     def _build_profile_tab(self):
         widget = QWidget()
